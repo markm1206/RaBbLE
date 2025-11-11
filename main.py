@@ -43,10 +43,22 @@ def main():
     blink_state = "IDLE" # IDLE, CLOSING, PAUSED, OPENING
     blink_start_time = 0
 
+    # Emotion states
+    EMOTIONS = ["HAPPY", "SAD", "ANGRY"]
+    current_emotion_index = 0
+    current_emotion = EMOTIONS[current_emotion_index]
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_m:
+                    current_emotion_index = (current_emotion_index + 1) % len(EMOTIONS)
+                    current_emotion = EMOTIONS[current_emotion_index]
+                    print(f"Emotion changed to: {current_emotion}") # For debugging
+
+        # --- Blinking Logic ---
 
         # --- Blinking Logic ---
         current_time = pygame.time.get_ticks()
@@ -170,10 +182,57 @@ def main():
             start_index = len(normalized_data) // 2 - (mouth_width // 2)
             end_index = len(normalized_data) // 2 + (mouth_width // 2)
             
-            for i, sample in enumerate(normalized_data[start_index:end_index]):
-                x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
-                y = int(mouth_waveform_y_center + sample * 200) # Increased scaling for amplitude
-                points.append((x, y))
+            # Adjustments based on emotion
+            y_offset = 0
+            amplitude_multiplier = 500 # Default amplitude
+            
+            if current_emotion == "HAPPY":
+                y_offset = -40 # More pronounced upward curve
+                # Apply a parabolic curve for happy
+                for i, sample in enumerate(normalized_data[start_index:end_index]):
+                    x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
+                    # Parabolic curve: max at center, min at edges
+                    curve_factor = 1 - (abs(i - (mouth_width // 2)) / (mouth_width // 2))**2
+                    y = int(mouth_waveform_y_center + y_offset * curve_factor + sample * amplitude_multiplier)
+                    points.append((x, y))
+            elif current_emotion == "SAD":
+                y_offset = 40 # More pronounced downward curve
+                # Apply a parabolic curve for sad
+                for i, sample in enumerate(normalized_data[start_index:end_index]):
+                    x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
+                    curve_factor = 1 - (abs(i - (mouth_width // 2)) / (mouth_width // 2))**2
+                    y = int(mouth_waveform_y_center + y_offset * curve_factor + sample * amplitude_multiplier)
+                    points.append((x, y))
+            elif current_emotion == "ANGRY":
+                amplitude_multiplier = 800 # Increased amplitude for angry
+                # Saw wave pattern:
+                # This will create a repeating sharp rise and gradual fall
+                saw_period = mouth_width // 4 # Number of segments for the saw wave
+                for i, sample in enumerate(normalized_data[start_index:end_index]):
+                    x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
+                    
+                    # Calculate position within a saw tooth cycle
+                    pos_in_cycle = i % saw_period
+                    
+                    # Create a saw tooth pattern: rise sharply, then fall linearly
+                    # This is a simplified saw wave, might need adjustment
+                    saw_offset = (pos_in_cycle / saw_period) * 40 # Max height of saw tooth
+                    
+                    # To make it a "V" saw wave, it should go down and up
+                    # Let's try a triangular wave for a "V" saw effect
+                    # It goes down from the start to the middle of the cycle, then up
+                    if pos_in_cycle < saw_period / 2:
+                        saw_offset = (pos_in_cycle / (saw_period / 2)) * 40
+                    else:
+                        saw_offset = (1 - ((pos_in_cycle - (saw_period / 2)) / (saw_period / 2))) * 40
+
+                    y = int(mouth_waveform_y_center - saw_offset + sample * amplitude_multiplier)
+                    points.append((x, y))
+            else: # Default / IDLE
+                for i, sample in enumerate(normalized_data[start_index:end_index]):
+                    x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
+                    y = int(mouth_waveform_y_center + sample * amplitude_multiplier)
+                    points.append((x, y))
             
             if len(points) > 1:
                 pygame.draw.lines(screen, WAVEFORM_COLOR, False, points, 4) # Thicker line for mouth, increased definition
