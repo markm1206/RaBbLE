@@ -7,7 +7,6 @@ import numpy as np
 WIDTH, HEIGHT = 800, 600
 BACKGROUND_COLOR = (0, 0, 0)  # Black
 EYE_COLOR = (150, 75, 150)     # Less saturated magenta
-MOUTH_COLOR = (0, 0, 0)       # Black (no longer used for mouth)
 WAVEFORM_COLOR = EYE_COLOR  # Mouth color same as eyes
 
 # --- Audio Settings ---
@@ -16,15 +15,172 @@ FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 44100
 
+class Eye:
+    def __init__(self, x, y, radius, color, background_color, eyelid_position='top'):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.color = color
+        self.background_color = background_color
+        self.eyelid_position = eyelid_position
+
+        # Blinking state
+        self.last_blink_time = 0
+        self.blink_interval = 1000  # Default blink interval
+        self.blink_close_duration = 150
+        self.blink_open_duration = 150
+        self.blink_pause_duration = 50
+        self.blink_state = "IDLE"
+        self.blink_start_time = 0
+
+        # Ellipse dimensions
+        self.ellipse_width = int(self.radius * 3)
+        self.ellipse_height = int(self.radius * 0.75)
+        self.overlap_amount = int(self.radius * 0.5)
+
+    def update(self):
+        current_time = pygame.time.get_ticks()
+
+        if self.blink_state == "IDLE":
+            if current_time - self.last_blink_time > self.blink_interval:
+                self.blink_state = "CLOSING"
+                self.blink_start_time = current_time
+        elif self.blink_state == "CLOSING":
+            if current_time - self.blink_start_time > self.blink_close_duration:
+                self.blink_state = "PAUSED"
+                self.blink_start_time = current_time
+        elif self.blink_state == "PAUSED":
+            if current_time - self.blink_start_time > self.blink_pause_duration:
+                self.blink_state = "OPENING"
+                self.blink_start_time = current_time
+        elif self.blink_state == "OPENING":
+            if current_time - self.blink_start_time > self.blink_open_duration:
+                self.blink_state = "IDLE"
+                self.last_blink_time = current_time
+
+    def draw(self, screen):
+        current_time = pygame.time.get_ticks()
+
+        # Define resting and target positions for the blink
+        if self.eyelid_position == 'top':
+            resting_y = self.y - self.radius - self.ellipse_height + self.overlap_amount
+            target_y = self.y + self.radius - self.ellipse_height
+        else: # bottom
+            resting_y = self.y + self.radius - self.overlap_amount
+            target_y = self.y - self.radius
+
+        current_ellipse_y = resting_y
+
+        if self.blink_state == "CLOSING":
+            blink_progress = min(1, (current_time - self.blink_start_time) / self.blink_close_duration)
+            current_ellipse_y = resting_y + (target_y - resting_y) * blink_progress
+        elif self.blink_state == "PAUSED":
+            current_ellipse_y = target_y
+        elif self.blink_state == "OPENING":
+            blink_progress = min(1, (current_time - self.blink_start_time) / self.blink_open_duration)
+            current_ellipse_y = target_y + (resting_y - target_y) * blink_progress
+
+        # Draw the eyelid and its mask
+        ellipse_rect = pygame.Rect(self.x - (self.ellipse_width // 2), current_ellipse_y, self.ellipse_width, self.ellipse_height)
+        pygame.draw.ellipse(screen, self.color, ellipse_rect)
+        
+        # Draw the eye on top
+        pygame.draw.circle(screen, self.background_color, (self.x, self.y), self.radius, 0)
+        pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius, 4)
+
+class Mouth:
+    def __init__(self, x, y, width, color):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.color = color
+
+    def draw(self, screen, normalized_data, y_offset, amplitude_multiplier, shape="default"):
+        points = []
+        start_index = len(normalized_data) // 2 - (self.width // 2)
+        end_index = len(normalized_data) // 2 + (self.width // 2)
+        
+        if shape == "parabolic":
+            for i, sample in enumerate(normalized_data[start_index:end_index]):
+                x = int(self.x - (self.width // 2) + (i / self.width * self.width))
+                curve_factor = 1 - (abs(i - (self.width // 2)) / (self.width // 2))**2
+                y = int(self.y + y_offset * curve_factor + sample * amplitude_multiplier)
+                points.append((x, y))
+        elif shape == "saw":
+            saw_period = self.width // 4
+            for i, sample in enumerate(normalized_data[start_index:end_index]):
+                x = int(self.x - (self.width // 2) + (i / self.width * self.width))
+                pos_in_cycle = i % saw_period
+                if pos_in_cycle < saw_period / 2:
+                    saw_offset = (pos_in_cycle / (saw_period / 2)) * 40
+                else:
+                    saw_offset = (1 - ((pos_in_cycle - (saw_period / 2)) / (saw_period / 2))) * 40
+                y = int(self.y - saw_offset + sample * amplitude_multiplier)
+                points.append((x, y))
+        else: # Default
+            for i, sample in enumerate(normalized_data[start_index:end_index]):
+                x = int(self.x - (self.width // 2) + (i / self.width * self.width))
+                y = int(self.y + sample * amplitude_multiplier)
+                points.append((x, y))
+        
+        if len(points) > 1:
+            pygame.draw.lines(screen, self.color, False, points, 4)
+
+class Face:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.emotion = "HAPPY"
+        
+        eye_radius = 30
+        self.left_eye = Eye(x - 60, y - 40, eye_radius, EYE_COLOR, BACKGROUND_COLOR, 'bottom')
+        self.right_eye = Eye(x + 60, y - 40, eye_radius, EYE_COLOR, BACKGROUND_COLOR, 'top')
+        self.mouth = Mouth(x, y + 80, 300, WAVEFORM_COLOR)
+
+    def set_emotion(self, emotion):
+        self.emotion = emotion
+        if self.emotion == "ANGRY":
+            self.left_eye.blink_interval = 500
+            self.right_eye.blink_interval = 500
+        elif self.emotion == "SAD":
+            self.left_eye.blink_interval = 2000
+            self.right_eye.blink_interval = 2000
+        else: # HAPPY
+            self.left_eye.blink_interval = 1000
+            self.right_eye.blink_interval = 1000
+
+    def toggle_eyelids(self):
+        if self.left_eye.eyelid_position == 'bottom':
+            self.left_eye.eyelid_position = 'top'
+            self.right_eye.eyelid_position = 'bottom'
+        else:
+            self.left_eye.eyelid_position = 'bottom'
+            self.right_eye.eyelid_position = 'top'
+
+    def update(self):
+        self.left_eye.update()
+        self.right_eye.update()
+
+    def draw(self, screen, normalized_data):
+        self.left_eye.draw(screen)
+        self.right_eye.draw(screen)
+
+        if self.emotion == "SAD":
+            self.mouth.draw(screen, normalized_data, -40, 500, "parabolic")
+        elif self.emotion == "HAPPY":
+            self.mouth.draw(screen, normalized_data, 40, 500, "parabolic")
+        elif self.emotion == "ANGRY":
+            self.mouth.draw(screen, normalized_data, 0, 800, "saw")
+        else:
+            self.mouth.draw(screen, normalized_data, 0, 500)
+
 # --- Main Application ---
 def main():
     pygame.init()
 
-    # Set up the display
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Animated Face with Audio Waveform")
 
-    # --- Audio Stream ---
     p = pyaudio.PyAudio()
     stream = p.open(format=FORMAT,
                     channels=CHANNELS,
@@ -32,22 +188,13 @@ def main():
                     input=True,
                     frames_per_buffer=CHUNK)
 
-    # Main loop
-    running = True
-    last_blink_time = 0
-    blink_interval = 1000  # Time between blinks (in ms), very fast
-    blink_close_duration = 75  # How long the blink closing lasts (in ms)
-    blink_open_duration = 75 # How long the blink opening lasts (in ms)
-    blink_pause_duration = 50 # How long eyes stay closed (in ms)
-
-    blink_state = "IDLE" # IDLE, CLOSING, PAUSED, OPENING
-    blink_start_time = 0
-
-    # Emotion states
+    face = Face(WIDTH // 2, HEIGHT // 2)
+    
     EMOTIONS = ["HAPPY", "SAD", "ANGRY"]
     current_emotion_index = 0
-    current_emotion = EMOTIONS[current_emotion_index]
+    face.set_emotion(EMOTIONS[current_emotion_index])
 
+    running = True
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -55,201 +202,28 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_m:
                     current_emotion_index = (current_emotion_index + 1) % len(EMOTIONS)
-                    current_emotion = EMOTIONS[current_emotion_index]
-                    print(f"Emotion changed to: {current_emotion}") # For debugging
+                    face.set_emotion(EMOTIONS[current_emotion_index])
+                    print(f"Emotion changed to: {face.emotion}")
+                elif event.key == pygame.K_t:
+                    face.toggle_eyelids()
 
-        # --- Blinking Logic ---
+        face.update()
 
-        # --- Blinking Logic ---
-        current_time = pygame.time.get_ticks()
-
-        if blink_state == "IDLE":
-            if current_time - last_blink_time > blink_interval:
-                blink_state = "CLOSING"
-                blink_start_time = current_time
-        elif blink_state == "CLOSING":
-            if current_time - blink_start_time > blink_close_duration:
-                blink_state = "PAUSED"
-                blink_start_time = current_time
-        elif blink_state == "PAUSED":
-            if current_time - blink_start_time > blink_pause_duration:
-                blink_state = "OPENING"
-                blink_start_time = current_time
-        elif blink_state == "OPENING":
-            if current_time - blink_start_time > blink_open_duration:
-                blink_state = "IDLE"
-                last_blink_time = current_time # Reset for next blink
-
-        # --- Drawing ---
-        # Background
         screen.fill(BACKGROUND_COLOR)
 
-        # Eyes
-        eye_radius = 30 # Increased eye size
-        face_x = WIDTH // 2 # Keep face_x for eye positioning
-        face_y = HEIGHT // 2 # Centered face vertically
-        left_eye_x = face_x - 60 # Adjusted eye separation
-        right_eye_x = face_x + 60 # Adjusted eye separation
-        eye_y = face_y - 40 # Adjusted eye vertical position
-        
-        # Ellipse dimensions (defined here for use in animation)
-        ellipse_width = int(eye_radius * 3)
-        ellipse_height = int(eye_radius * 0.75)
-        overlap_amount = int(eye_radius * 0.5)
-
-        # Calculate initial ellipse positions (idle state)
-        initial_right_ellipse_y = eye_y - eye_radius - ellipse_height + overlap_amount
-        initial_left_ellipse_y = eye_y + eye_radius - overlap_amount
-
-        # Calculate target ellipse positions (closed state)
-        closed_right_ellipse_y = eye_y + eye_radius - ellipse_height # Target to fully cover the eye
-        closed_left_ellipse_y = eye_y - eye_radius # Target to fully cover the eye
-
-        current_right_ellipse_y = initial_right_ellipse_y
-        current_left_ellipse_y = initial_left_ellipse_y
-
-        blink_progress = 0.0
-        if blink_state == "CLOSING":
-            blink_progress = min(1, (current_time - blink_start_time) / blink_close_duration)
-            current_right_ellipse_y = initial_right_ellipse_y + (closed_right_ellipse_y - initial_right_ellipse_y) * blink_progress
-            current_left_ellipse_y = initial_left_ellipse_y + (closed_left_ellipse_y - initial_left_ellipse_y) * blink_progress
-        elif blink_state == "OPENING":
-            blink_progress = min(1, (current_time - blink_start_time) / blink_open_duration)
-            # Reverse animation: interpolate from closed position back to initial
-            current_right_ellipse_y = closed_right_ellipse_y + (initial_right_ellipse_y - closed_right_ellipse_y) * blink_progress
-            current_left_ellipse_y = closed_left_ellipse_y + (initial_left_ellipse_y - closed_left_ellipse_y) * blink_progress
-        elif blink_state == "PAUSED":
-            current_right_ellipse_y = closed_right_ellipse_y
-            current_left_ellipse_y = closed_left_ellipse_y
-
-        # --- Drawing Order based on blink_state ---
-        if blink_state == "IDLE" or blink_state == "OPENING":
-            # Draw ellipses first (static or animating back to idle)
-            right_eye_ellipse_rect = pygame.Rect(right_eye_x - (ellipse_width // 2), current_right_ellipse_y, ellipse_width, ellipse_height)
-            pygame.draw.ellipse(screen, EYE_COLOR, right_eye_ellipse_rect)
-            left_eye_ellipse_rect = pygame.Rect(left_eye_x - (ellipse_width // 2), current_left_ellipse_y, ellipse_width, ellipse_height)
-            pygame.draw.ellipse(screen, EYE_COLOR, left_eye_ellipse_rect)
-
-            # Then draw eyes on top, with black fill to slightly overlap
-            pygame.draw.circle(screen, BACKGROUND_COLOR, (left_eye_x, eye_y), eye_radius, 0) # Filled black circle
-            pygame.draw.circle(screen, BACKGROUND_COLOR, (right_eye_x, eye_y), eye_radius, 0) # Filled black circle
-            pygame.draw.circle(screen, EYE_COLOR, (left_eye_x, eye_y), eye_radius, 4) # Outline
-            pygame.draw.circle(screen, EYE_COLOR, (right_eye_x, eye_y), eye_radius, 4) # Outline
-        else: # CLOSING or PAUSED
-            # Draw eyes first (static)
-            pygame.draw.circle(screen, BACKGROUND_COLOR, (left_eye_x, eye_y), eye_radius, 0) # Filled black circle
-            pygame.draw.circle(screen, BACKGROUND_COLOR, (right_eye_x, eye_y), eye_radius, 0) # Filled black circle
-            pygame.draw.circle(screen, EYE_COLOR, (left_eye_x, eye_y), eye_radius, 4) # Outline
-            pygame.draw.circle(screen, EYE_COLOR, (right_eye_x, eye_y), eye_radius, 4) # Outline
-
-            # Then draw ellipses on top (animating to cover eyes or paused covering eyes)
-            # Clear the area where the ellipses will move to prevent ghosting
-            # This needs to be done before drawing the ellipses to ensure proper animation
-            clear_right_rect_y = min(initial_right_ellipse_y, closed_right_ellipse_y)
-            clear_right_rect_height = ellipse_height + abs(closed_right_ellipse_y - initial_right_ellipse_y)
-            pygame.draw.rect(screen, BACKGROUND_COLOR, (right_eye_x - (ellipse_width // 2), clear_right_rect_y, ellipse_width, clear_right_rect_height))
-            
-            clear_left_rect_y = min(initial_left_ellipse_y, closed_left_ellipse_y)
-            clear_left_rect_height = ellipse_height + abs(closed_left_ellipse_y - initial_left_ellipse_y)
-            pygame.draw.rect(screen, BACKGROUND_COLOR, (left_eye_x - (ellipse_width // 2), clear_left_rect_y, ellipse_width, clear_left_rect_height))
-
-            right_eye_ellipse_rect = pygame.Rect(right_eye_x - (ellipse_width // 2), current_right_ellipse_y, ellipse_width, ellipse_height)
-            pygame.draw.ellipse(screen, EYE_COLOR, right_eye_ellipse_rect)
-            left_eye_ellipse_rect = pygame.Rect(left_eye_x - (ellipse_width // 2), current_left_ellipse_y, ellipse_width, ellipse_height)
-            pygame.draw.ellipse(screen, EYE_COLOR, left_eye_ellipse_rect)
-
-        # --- Audio Processing ---
-
-        # --- Audio Processing ---
         try:
             raw_data = stream.read(CHUNK)
             data = np.frombuffer(raw_data, dtype=np.int16)
-            
-            # Normalize data for waveform and mouth animation
             normalized_data = data / (2.**15)
-            
-            # --- Drawing ---
-            # (already done: background, eyes)
-
-            # Waveform as Mouth
-            # Position the waveform where the mouth used to be
-            mouth_waveform_y_center = face_y + 80 # Center of the mouth area, adjusted for centered face
-            
-            points = []
-            # Scale the waveform more for a larger amplitude
-            # Use a subset of data to fit the mouth width
-            mouth_width = 300 # Increased mouth width to make it longer
-            start_index = len(normalized_data) // 2 - (mouth_width // 2)
-            end_index = len(normalized_data) // 2 + (mouth_width // 2)
-            
-            # Adjustments based on emotion
-            y_offset = 0
-            amplitude_multiplier = 500 # Default amplitude
-            
-            if current_emotion == "HAPPY":
-                y_offset = -40 # More pronounced upward curve
-                # Apply a parabolic curve for happy
-                for i, sample in enumerate(normalized_data[start_index:end_index]):
-                    x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
-                    # Parabolic curve: max at center, min at edges
-                    curve_factor = 1 - (abs(i - (mouth_width // 2)) / (mouth_width // 2))**2
-                    y = int(mouth_waveform_y_center + y_offset * curve_factor + sample * amplitude_multiplier)
-                    points.append((x, y))
-            elif current_emotion == "SAD":
-                y_offset = 40 # More pronounced downward curve
-                # Apply a parabolic curve for sad
-                for i, sample in enumerate(normalized_data[start_index:end_index]):
-                    x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
-                    curve_factor = 1 - (abs(i - (mouth_width // 2)) / (mouth_width // 2))**2
-                    y = int(mouth_waveform_y_center + y_offset * curve_factor + sample * amplitude_multiplier)
-                    points.append((x, y))
-            elif current_emotion == "ANGRY":
-                amplitude_multiplier = 800 # Increased amplitude for angry
-                # Saw wave pattern:
-                # This will create a repeating sharp rise and gradual fall
-                saw_period = mouth_width // 4 # Number of segments for the saw wave
-                for i, sample in enumerate(normalized_data[start_index:end_index]):
-                    x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
-                    
-                    # Calculate position within a saw tooth cycle
-                    pos_in_cycle = i % saw_period
-                    
-                    # Create a saw tooth pattern: rise sharply, then fall linearly
-                    # This is a simplified saw wave, might need adjustment
-                    saw_offset = (pos_in_cycle / saw_period) * 40 # Max height of saw tooth
-                    
-                    # To make it a "V" saw wave, it should go down and up
-                    # Let's try a triangular wave for a "V" saw effect
-                    # It goes down from the start to the middle of the cycle, then up
-                    if pos_in_cycle < saw_period / 2:
-                        saw_offset = (pos_in_cycle / (saw_period / 2)) * 40
-                    else:
-                        saw_offset = (1 - ((pos_in_cycle - (saw_period / 2)) / (saw_period / 2))) * 40
-
-                    y = int(mouth_waveform_y_center - saw_offset + sample * amplitude_multiplier)
-                    points.append((x, y))
-            else: # Default / IDLE
-                for i, sample in enumerate(normalized_data[start_index:end_index]):
-                    x = int(face_x - (mouth_width // 2) + (i / mouth_width * mouth_width))
-                    y = int(mouth_waveform_y_center + sample * amplitude_multiplier)
-                    points.append((x, y))
-            
-            if len(points) > 1:
-                pygame.draw.lines(screen, WAVEFORM_COLOR, False, points, 4) # Thicker line for mouth, increased definition
-
+            face.draw(screen, normalized_data)
         except IOError as e:
             print(e)
 
-
-        # Update the display
         pygame.display.flip()
 
-    # --- Cleanup ---
     stream.stop_stream()
     stream.close()
     p.terminate()
-
-    # Quit Pygame
     pygame.quit()
     sys.exit()
 
