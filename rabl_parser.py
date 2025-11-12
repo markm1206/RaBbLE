@@ -4,16 +4,43 @@ import os
 def parse_rabl(file_path):
     """
     Parses a .rabl file (YAML-like structure) into a Python dictionary using PyYAML.
+    
+    Args:
+        file_path: Path to the RABL file. Can be relative or absolute.
+                  If relative, will be resolved relative to the script's directory.
+    
+    Returns:
+        Dictionary containing parsed RABL data, or None if parsing fails.
     """
     try:
+        # If the path is relative, resolve it relative to this script's directory
+        if not os.path.isabs(file_path):
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(script_dir, file_path)
+        
+        # Expand user home directory if needed
+        file_path = os.path.expanduser(file_path)
+        
+        # Normalize the path
+        file_path = os.path.normpath(file_path)
+        
+        print(f"Loading RABL configuration from: {file_path}")
+        
         with open(file_path, 'r') as f:
             data = yaml.safe_load(f)
+        
+        print(f"Successfully loaded RABL configuration.")
         return data
     except FileNotFoundError:
         print(f"Error: RABL file not found at {file_path}")
+        print(f"Current working directory: {os.getcwd()}")
+        print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
         return None
     except yaml.YAMLError as e:
         print(f"Error parsing RABL file {file_path}: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error loading RABL file: {e}")
         return None
 
 if __name__ == '__main__':

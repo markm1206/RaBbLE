@@ -13,7 +13,8 @@ def main():
     pygame.init()
 
     # Load all configuration from RABL file
-    config_data = parse_rabl("Animated_Face_FrontEnd/emotions.rabl")
+    # The path is relative to the script's directory, so it will work from anywhere
+    config_data = parse_rabl("config.rabl")
     
     if config_data is None:
         print("Failed to load configuration. Exiting.")
