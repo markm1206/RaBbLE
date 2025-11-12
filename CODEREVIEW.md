@@ -5,35 +5,55 @@ This document provides a comprehensive overview of the codebase structure, compo
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Component Documentation](#component-documentation)
-3. [File Structure](#file-structure)
-4. [Data Flow](#data-flow)
-5. [Extending the System](#extending-the-system)
-6. [Key Design Patterns](#key-design-patterns)
+2. [Core Components](#core-components)
+3. [New Modules & Features](#new-modules-and-features)
+4. [File Structure](#file-structure)
+5. [Data Flow](#data-flow)
+6. [Extending the System](#extending-the-system)
+7. [Key Design Patterns](#key-design-patterns)
+8. [Performance Considerations](#performance-considerations)
+9. [Troubleshooting Guide](#troubleshooting-guide)
+10. [Integration Notes](#integration-notes)
 
 ---
 
 ## Architecture Overview
 
-The RABBLE Animated Face Frontend follows a **modular, hierarchical component model**:
+The RABBLE Animated Face Frontend follows a **modular, hierarchical component model** with enhanced capabilities for audio processing and dynamic configuration.
 
 ```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                                 main.py                                   │
+│           (Application Orchestration, GUI, Emotion Configuration)         │
+│                                                                           │
+│  - Pygame initialization & main loop                                      │
+│  - Loads emotion configurations from `emotions.rabl` via `rabl_parser.py` │
+│  - Manages `AudioHandler` and `Transcriber` threads                       │
+│  - Handles user input (keyboard)                                          │
+│  - Renders `Face` component and transcribed text                          │
+└───────────────────┬───────────────────┬───────────────────┬───────────────┘
+                    │                   │                   │
+                    ↓                   ↓                   ↓
+┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐
+│  rabl_parser.py   │ │  audio_handler.py │ │   transcriber.py  │
+│ (RABL Config Parser)│ │ (Threaded Audio Input)│ │ (Model-Agnostic Transcriber)│
+│  - Parses `.rabl` files │ │  - Manages PyAudio stream │ │  - Abstract base class    │
+│  - Uses `PyYAML` for robust │ │  - Amplifies audio for    │ │  - OpenAIWhisperTranscriber│
+│    parsing                │ │    transcription          │ │  - FasterWhisperTranscriber│
+│                           │ │  - Provides audio to      │ │  - Threaded transcription │
+│                           │ │    animation & transcription │ │  - Configurable interval  │
+│                           │ │    queues                 │ │  - Overlapping buffers    │
+│                           │ │                           │ │  - Logs output to file    │
+└───────────────────┘ └───────────────────┘ └───────────────────┘
+                    │
+                    │ creates & updates
+                    ↓
 ┌─────────────────────────────────────────┐
-│          main.py                        │
-│    (Animation Loop & Audio I/O)         │
+│                  Face                   │
+│        (Dynamic Emotion Manager)        │
 │                                         │
-│  - Pygame initialization                │
-│  - PyAudio stream management            │
-│  - Event handling (keyboard input)      │
-│  - Main render loop                     │
-└────────────────┬────────────────────────┘
-                 │ creates & updates
-                 ↓
-┌─────────────────────────────────────────┐
-│          Face                           │
-│    (Emotion & Component Manager)        │
-│                                         │
-│  - Manages emotional state              │
+│  - Manages emotional state dynamically  │
+│    from loaded RABL config              │
 │  - Coordinates Eye and Mouth rendering  │
 │  - Maps emotions to animations          │
 └────────┬────────────────────────┬───────┘
@@ -47,196 +67,151 @@ The RABBLE Animated Face Frontend follows a **modular, hierarchical component mo
 ```
 
 **Design Principles:**
-- **Separation of Concerns**: Each component has a single, well-defined responsibility
-- **Color Inheritance**: Colors are passed via constructor, allowing easy theming
-- **State Management**: Components maintain their own state (blink timers, animations)
-- **Time-Based Animation**: Uses `pygame.time.get_ticks()` for smooth, frame-rate-independent animations
+- **Separation of Concerns**: Each component/module has a single, well-defined responsibility.
+- **Dynamic Configuration**: Emotion behaviors are externalized into `.rabl` files, allowing runtime modification without code changes.
+- **Model Agnosticism**: The transcription system uses an Abstract Base Class, enabling easy swapping or addition of different ASR models.
+- **Multithreading**: Dedicated threads for audio input and transcription prevent GUI blocking, ensuring responsiveness.
+- **Color Inheritance**: Colors are passed via constructor, allowing easy theming.
+- **State Management**: Components maintain their own state (blink timers, animations).
+- **Time-Based Animation**: Uses `pygame.time.get_ticks()` for smooth, frame-rate-independent animations.
+- **Data Normalization & Amplification**: Audio is normalized for visualization and optionally amplified for transcription.
 
 ---
 
-## Component Documentation
+## Core Components
 
-### 1. `main.py` - Animation Loop & Audio I/O
+### 1. `main.py` - Application Orchestration & GUI
 
-**Responsibility**: Orchestrate the application lifecycle, handle user input, and manage audio streaming.
+**Responsibility**: Initializes Pygame, loads configurations, sets up and manages threads for audio and transcription, handles user input, and orchestrates the main rendering loop.
 
 **Key Constants**:
-```python
-WIDTH, HEIGHT = 800, 600              # Display resolution
-BACKGROUND_COLOR = (0, 0, 0)          # Black background
-EYE_COLOR = (150, 75, 150)            # Magenta eyes
-WAVEFORM_COLOR = EYE_COLOR            # Mouth color (same as eyes)
-
-CHUNK = 1024 * 2                      # Audio buffer size
-FORMAT = pyaudio.paInt16              # 16-bit audio format
-CHANNELS = 1                          # Mono audio
-RATE = 44100                          # Sample rate (44.1 kHz)
-
-EMOTIONS = ["IDLE", "HAPPY", "SAD", "ANGRY"]  # Available emotions
-```
+- `TRANSCRIBER_BACKEND`: Selects between `"openai"` and `"faster-whisper"`.
+- `WIDTH, HEIGHT`: Display resolution.
+- `BACKGROUND_COLOR, EYE_COLOR, WAVEFORM_COLOR, TEXT_COLOR`: RGB tuples for theming.
 
 **Main Functions**:
-- `main()`: Core application loop
-  - Initializes Pygame and PyAudio
-  - Creates Face component with color parameters
-  - Handles events (quit, emotion cycling, eyelid toggle)
-  - Reads audio input and passes to Face for rendering
-  - Manages display updates
+- `main()`: Core application loop.
+  - Initializes Pygame.
+  - Loads emotion configurations from `emotions.rabl` using `rabl_parser.py`.
+  - Sets up `animation_queue`, `transcription_queue`, `text_queue`, and `model_loaded_event`.
+  - Instantiates and starts `AudioHandler` and `Transcriber` (via factory logic).
+  - Creates `Face` component, passing loaded emotion configurations.
+  - Handles events (quit, emotion cycling, eyelid toggle).
+  - Retrieves audio data from `animation_queue` for `Face` drawing.
+  - Retrieves transcribed text from `text_queue` and renders it.
+  - Manages display updates.
 
 **Event Handling**:
-- **QUIT**: Exit application
-- **KEY_M**: Cycle through emotions
-- **KEY_T**: Toggle eyelid positions
-
-**Audio Processing**:
-- Reads audio chunks from microphone via PyAudio
-- Converts raw bytes to numpy array
-- Normalizes to range [-1, 1]
-- Passes normalized data to `Face.draw()` for visualization
+- **QUIT**: Exits application.
+- **KEY_M**: Cycles through emotions defined in `emotions.rabl`.
+- **KEY_T**: Toggles eyelid positions.
 
 ---
 
-### 2. `face.py` - Face Component (Emotion Manager)
+### 2. `face.py` - Dynamic Emotion Manager
 
-**Responsibility**: Manage overall emotional state and coordinate rendering of Eye and Mouth components.
+**Responsibility**: Manages the overall emotional state of the face and coordinates the rendering of its `Eye` and `Mouth` components based on dynamic configurations.
 
 **Constructor**:
 ```python
-Face(x, y, eye_color, mouth_color, background_color)
+Face(x, y, eye_color, mouth_color, background_color, emotion_config)
 ```
 
 **Parameters**:
-- `x, y`: Center position of the face on screen
-- `eye_color`: RGB tuple for eye color (inherited from constants)
-- `mouth_color`: RGB tuple for mouth color (inherited from constants)
-- `background_color`: RGB tuple for background (inherited from constants)
+- `x, y`: Center position of the face.
+- `eye_color, mouth_color, background_color`: RGB tuples for theming.
+- `emotion_config`: Dictionary containing emotion configurations loaded from `emotions.rabl`.
 
 **Key Attributes**:
-```python
-self.emotion                    # Current emotion state
-self.left_eye, self.right_eye   # Eye components (with asymmetric eyelid positions)
-self.mouth                      # Mouth component
-```
+- `self.emotion`: Current emotion state (e.g., "IDLE", "HAPPY").
+- `self.emotion_config`: Stores the loaded emotion parameters.
+- `self.left_eye, self.right_eye`: `Eye` components.
+- `self.mouth`: `Mouth` component.
 
 **Public Methods**:
-
-| Method | Purpose |
-|--------|---------|
-| `set_emotion(emotion)` | Set face emotion and update blink intervals |
-| `toggle_eyelids()` | Swap eyelid positions (for asymmetrical expressions) |
-| `update()` | Update component states (call once per frame) |
-| `draw(screen, normalized_data, current_time)` | Render face with emotion-specific mouth shapes |
-
-**Emotion Behaviors**:
-
-| Emotion | Blink Rate | Mouth Shape | Details |
-|---------|-----------|-------------|---------|
-| IDLE | 1000ms | Sine wave (subtle) | Slight undulating breathing effect |
-| HAPPY | 1000ms | Parabolic (upward) | Cheerful, curved mouth shape; amplitude 500 |
-| SAD | 2000ms | Parabolic (downward) | Slower blinking; inverted parabola; amplitude 500 |
-| ANGRY | 500ms | Sawtooth | Rapid blinking; aggressive jagged pattern; amplitude 800 |
-
-**Color Inheritance Example**:
-```python
-face = Face(400, 300, (150, 75, 150), (150, 75, 150), (0, 0, 0))
-# Colors flow to:
-# - left_eye.color = (150, 75, 150)
-# - right_eye.color = (150, 75, 150)
-# - mouth.color = (150, 75, 150)
-```
+- `set_emotion(emotion)`: Sets the face emotion and updates blink intervals based on `emotion_config`.
+- `toggle_eyelids()`: Swaps eyelid positions for asymmetric expressions.
+- `update()`: Updates component states.
+- `draw(screen, normalized_data, current_time)`: Renders the face, dynamically retrieving mouth parameters (`y_offset`, `amplitude_multiplier`, `mouth_shape`, `shape_params`) from `emotion_config`.
 
 ---
 
 ### 3. `eye.py` - Eye Component (Blinking & Rendering)
 
-**Responsibility**: Render individual eye with realistic blinking animation and asymmetric eyelid positioning.
-
-**Constructor**:
-```python
-Eye(x, y, radius, color, background_color, eyelid_position='top')
-```
-
-**Parameters**:
-- `x, y`: Center position of eye
-- `radius`: Eye circle radius (default: 30px)
-- `color`: RGB tuple for eye/eyelid color (inherited)
-- `background_color`: RGB tuple for background (for masking)
-- `eyelid_position`: 'top' or 'bottom' for asymmetric expressions
-
-**Blink State Machine**:
-```
-IDLE → CLOSING → PAUSED → OPENING → IDLE
-```
-
-**Blink Timing Parameters**:
-```python
-blink_interval = 1000      # Wait time before next blink (emotion-dependent)
-blink_close_duration = 75  # Time to close (75ms = 3 frames at 60fps)
-blink_open_duration = 150  # Time to open (150ms = 6 frames at 60fps)
-blink_pause_duration = 50  # Time paused closed (50ms)
-```
-
-**Rendering Process**:
-1. **Draw Eyelid Ellipse**: Moves vertically to cover eye
-2. **Draw Eye Circle**: White background + magenta ring
-3. **Draw Occlusion Rectangle**: Masks eyelid movement
-
-**Key Methods**:
-
-| Method | Purpose |
-|--------|---------|
-| `update()` | Update blink state based on timing |
-| `draw(screen)` | Render eye with current blink state |
-| `set_blink_interval(interval)` | Change blink rate |
-| `set_eyelid_position(position)` | Switch eyelid to 'top' or 'bottom' |
-
-**Eyelid Position Logic**:
-- **Top Eyelid**: Closes from above, rests above eye
-- **Bottom Eyelid**: Closes from below, rests below eye
-- Asymmetric positioning allows expressive faces (e.g., winking effect)
+**Responsibility**: Renders individual eyes with realistic blinking animations and asymmetric eyelid positioning. (No significant changes in recent refactoring).
 
 ---
 
 ### 4. `mouth.py` - Mouth Component (Audio Visualization)
 
-**Responsibility**: Render mouth shape based on audio input, with emotion-specific waveform shapes and breathing effects.
+**Responsibility**: Renders mouth shapes based on audio input, with emotion-specific waveform shapes and breathing effects, now with standardized properties.
 
-**Constructor**:
-```python
-Mouth(x, y, width, color)
-```
-
-**Parameters**:
-- `x, y`: Center position of mouth
-- `width`: Horizontal width of waveform (default: 300px)
-- `color`: RGB tuple for mouth color (inherited)
-
-**Waveform Shapes**:
-
-| Shape | Description | Usage | Effect |
-|-------|-------------|-------|--------|
-| `"default"` | Raw audio waveform | Neutral/default | Direct audio visualization |
-| `"parabolic"` | Curved parabola with audio | HAPPY/SAD | Expressive curve; upward or downward |
-| `"sine"` | Smooth sine wave undulation | IDLE | Subtle breathing animation |
-| `"saw"` | Sawtooth pattern with motion | ANGRY | Aggressive, jagged appearance |
-
-**Animation Features**:
-- **Time-Based Amplitude Factor**: `0.7 + 0.3 * sin(time * 0.002)` creates subtle breathing effect
-- **Frequency Modulation**: Different frequencies for different shapes
-- **Audio Sync**: Real-time response to audio input with multiplier parameters
+**Key Constants**:
+- `DEFAULT_WAVEFORM_FREQUENCY`: Ensures consistent movement speed across all waveforms.
+- `BREATHING_EFFECT_AMPLITUDE`: Controls the subtlety of the time-varied breathing effect.
 
 **Key Methods**:
+- `draw(screen, normalized_data, y_offset, amplitude_multiplier, shape, current_time, max_amplitude, shape_params)`:
+  -   `y_offset`: Now consistently `0` for all emotions, aligning waveform midpoints.
+  -   `amplitude_multiplier`: Standardized across most emotions, with a slightly higher value for "ANGRY".
+  -   `shape_params`: Dynamically retrieves shape-specific parameters (e.g., `sine_frequency`, `saw_period_divisor`, `base_amplitude`) from the RABL config.
+  -   `max_amplitude`: Clamps the waveform's vertical extent to prevent overlap with eyes.
+  -   Waveform generation logic updated to use `DEFAULT_WAVEFORM_FREQUENCY` and reduced `BREATHING_EFFECT_AMPLITUDE`.
+  -   Line thickness increased to `5` for a smoother appearance.
 
-| Method | Purpose |
-|--------|---------|
-| `draw(screen, normalized_data, y_offset, amplitude_multiplier, shape, current_time)` | Render mouth |
+---
 
-**Parameter Details**:
-- `normalized_data`: Audio array from [-1, 1]
-- `y_offset`: Vertical offset baseline (e.g., -40 for SAD, +40 for HAPPY)
-- `amplitude_multiplier`: Scaling factor (e.g., 200-800 depending on emotion)
-- `shape`: Waveform type ('default', 'parabolic', 'sine', 'saw')
-- `current_time`: Milliseconds for time-based animations
+## New Modules & Features
+
+### 1. `rabl_parser.py` - RABL Configuration Parser
+
+**Responsibility**: Provides a robust mechanism to parse `.rabl` files, which define emotion configurations.
+
+**Key Features**:
+-   Uses the `PyYAML` library for reliable parsing of YAML-like structures.
+-   Includes error handling for `FileNotFoundError` and `yaml.YAMLError`.
+
+**Main Function**:
+-   `parse_rabl(file_path)`: Reads and parses a `.rabl` file into a Python dictionary.
+
+---
+
+### 2. `audio_handler.py` - Threaded Audio Input
+
+**Responsibility**: Manages microphone audio input in a separate thread to prevent blocking the main GUI. Distributes audio data to different queues for visualization and transcription.
+
+**Key Features**:
+-   Runs in a `threading.Thread`.
+-   Initializes and manages `PyAudio` stream.
+-   **Audio Amplification**: Amplifies raw audio data (e.g., by `1.5`) before sending it to the transcription queue, improving transcription accuracy for quieter speech.
+-   Uses two `queue.Queue` instances:
+    -   `animation_queue`: For real-time, un-amplified audio data (normalized) for mouth visualization.
+    -   `transcription_queue`: For amplified raw audio data for the transcriber.
+
+---
+
+### 3. `transcriber.py` - Model-Agnostic Speech-to-Text Transcriber
+
+**Responsibility**: Provides a flexible, multi-threaded system for speech-to-text transcription, allowing easy swapping of different Whisper model implementations.
+
+**Key Constants**:
+-   `TRANSCRIPTION_INTERVAL_SECONDS`: Configurable interval (e.g., `0.5` seconds) for processing audio chunks.
+-   `OVERLAP_SECONDS`: Configurable overlap (e.g., `0.1` seconds) between chunks to prevent missed speech.
+
+**Classes**:
+-   **`AbstractTranscriber(ABC, threading.Thread)`**:
+    -   Abstract base class defining the interface (`_load_model`, `_transcribe_audio`) for all transcriber implementations.
+    -   Manages common threading logic, audio buffering, logging, and model loading signaling (`model_loaded_event`).
+    -   Implements configurable chunking with overlapping buffers.
+    -   Logs transcribed text to a timestamped file in the `logs/` directory.
+-   **`OpenAIWhisperTranscriber(AbstractTranscriber)`**:
+    -   Concrete implementation using the `openai-whisper` library.
+    -   Loads the specified Whisper model (e.g., `"tiny.en"`).
+    -   Transcribes audio using `self.model.transcribe()`.
+-   **`FasterWhisperTranscriber(AbstractTranscriber)`**:
+    -   Concrete implementation using the `faster-whisper` library.
+    -   Loads the `WhisperModel` with `device="cpu"` and `compute_type="int8"` for optimized CPU performance.
+    -   Processes transcription segments from `self.model.transcribe()` iterator.
 
 ---
 
@@ -244,60 +219,69 @@ Mouth(x, y, width, color)
 
 ```
 Animated_Face_FrontEnd/
-├── main.py                    # Entry point, animation loop, audio I/O
-├── face.py                    # Face component (emotion manager)
+├── main.py                    # Entry point, orchestration, GUI, emotion loading
+├── rabl_parser.py             # RABL configuration parser (uses PyYAML)
+├── emotions.rabl              # Emotion configuration file
+├── audio_handler.py           # Threaded audio input and amplification
+├── transcriber.py             # Model-agnostic speech-to-text transcriber (abstract + concrete impls)
+├── face.py                    # Face component (dynamic emotion manager)
 ├── eye.py                     # Eye component (blinking, rendering)
-├── mouth.py                   # Mouth component (audio visualization)
-├── requirements.txt           # Python dependencies
+├── mouth.py                   # Mouth component (audio visualization, standardized)
+├── requirements.txt           # Python dependencies (now includes openai-whisper, faster-whisper, pyyaml)
 ├── README.md                  # User-facing documentation
 └── CODEREVIEW.md             # This file (developer guide)
+└── logs/                      # Directory for transcription log files
+    └── transcription_YYYY-MM-DD_HH-MM-SS.log
 ```
 
 ---
 
 ## Data Flow
 
-### Per-Frame Execution Order
+### Per-Frame Execution Order (Updated)
 
 ```
 1. main.py: Handle Events
    ├─ Check for quit
-   ├─ Check for emotion change
+   ├─ Check for emotion change (updates Face from RABL config)
    └─ Check for eyelid toggle
 
 2. main.py: Update State
    └─ face.update()
-       ├─ left_eye.update()   (check blink timing)
-       └─ right_eye.update()  (check blink timing)
+       ├─ left_eye.update()   (check blink timing from RABL config)
+       └─ right_eye.update()  (check blink timing from RABL config)
 
-3. main.py: Read Audio
+3. audio_handler.py (Thread): Read Audio
    ├─ stream.read(CHUNK)      (get raw audio)
-   ├─ normalize to [-1, 1]
-   └─ pass to face.draw()
+   ├─ amplify raw audio for transcription_queue
+   ├─ normalize raw audio for animation_queue
+   └─ put data into respective queues
 
-4. face.py: Draw Components
+4. transcriber.py (Thread): Process Audio & Transcribe
+   ├─ Continuously pulls amplified raw audio from transcription_queue
+   ├─ Buffers audio, processes in `TRANSCRIPTION_INTERVAL_SECONDS` chunks with `OVERLAP_SECONDS`
+   ├─ Calls `_transcribe_audio` (model-specific)
+   └─ Puts transcribed text into text_queue and logs to file
+
+5. main.py: Draw Components
+   ├─ Get latest normalized audio from animation_queue (non-blocking)
+   ├─ Get latest transcribed text from text_queue (non-blocking)
    ├─ left_eye.draw(screen)
    ├─ right_eye.draw(screen)
-   └─ mouth.draw(screen, ...)  (with emotion-specific params)
+   └─ mouth.draw(screen, ...)  (with dynamic params from RABL config, clamped amplitude)
 
-5. main.py: Display Update
+6. main.py: Display Update
    └─ pygame.display.flip()
 ```
 
-### Audio Data Pipeline
+### Audio Data Pipeline (Updated)
 
 ```
 Microphone
     ↓
-PyAudio.stream.read() → raw bytes
-    ↓
-np.frombuffer() → int16 array
-    ↓
-Normalize by 2^15 → float array [-1, 1]
-    ↓
-mouth.draw() processes each sample
-    ↓
-Display as waveform on screen
+AudioHandler (Thread)
+    ├── Raw Bytes (amplified) → Transcription Queue → Transcriber (Thread) → Transcribed Text Queue → main.py (Display & Log)
+    └── Raw Bytes (normalized) → Animation Queue → main.py (Mouth Visualization)
 ```
 
 ---
@@ -306,115 +290,70 @@ Display as waveform on screen
 
 ### Adding a New Emotion
 
-1. **Add to EMOTIONS list** in `main.py`:
-```python
-EMOTIONS = ["IDLE", "HAPPY", "SAD", "ANGRY", "SURPRISED"]
-```
-
-2. **Update `Face.set_emotion()`** in `face.py`:
-```python
-def set_emotion(self, emotion):
-    self.emotion = emotion
-    if self.emotion == "SURPRISED":
-        self.left_eye.set_blink_interval(300)   # Fast blinking
-        self.right_eye.set_blink_interval(300)
-    # ... other emotions ...
-```
-
-3. **Define rendering** in `Face.draw()`:
-```python
-elif self.emotion == "SURPRISED":
-    self.mouth.draw(screen, normalized_data, 20, 600, "parabolic", current_time)
-```
+1.  **Modify `emotions.rabl`**: Add a new top-level key under `emotion_config` with the emotion name and its parameters (e.g., `blink_interval`, `mouth_shape`, `y_offset`, `amplitude_multiplier`, `shape_params`).
+    ```rabl
+    NEW_EMOTION:
+      blink_interval: 750
+      mouth_shape: custom_shape
+      y_offset: 0
+      amplitude_multiplier: 650
+      shape_params:
+        # ... custom parameters for 'custom_shape' ...
+    ```
+2.  **Update `main.py`**: The `EMOTIONS` list is now dynamically generated, so no code change is needed here.
+3.  **Implement New Mouth Shape (if custom)**: If `mouth_shape` refers to a new shape, implement its rendering logic in `mouth.py`'s `draw()` method.
 
 ### Adding a New Mouth Shape
 
-1. **Implement in `mouth.py`** `draw()` method:
-```python
-elif shape == "triangle":
-    # Your triangle waveform logic here
-    for i, sample in enumerate(normalized_data[start_index:end_index]):
-        x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-        # Calculate triangle pattern
-        y = int(self.y + sample * amplitude_multiplier)
-        points.append((x, y))
-```
+1.  **Implement in `mouth.py` `draw()` method**: Add a new `elif shape == "your_new_shape":` block with the custom rendering logic. Ensure it uses `DEFAULT_WAVEFORM_FREQUENCY` and respects `max_amplitude`.
+2.  **Define parameters in `emotions.rabl`**: For any emotion using this new shape, specify `mouth_shape: your_new_shape` and provide any `shape_params` it requires.
 
-2. **Use in emotion** in `face.py`:
-```python
-elif self.emotion == "CUSTOM":
-    self.mouth.draw(screen, normalized_data, 0, 400, "triangle", current_time)
-```
+### Adding a New Transcriber Backend
 
-### Changing Colors Dynamically
-
-```python
-# Modify constants in main.py or pass new colors to Face:
-face2 = Face(400, 300, (0, 255, 0), (0, 255, 0), (255, 255, 255))  # Green on white
-```
-
-### Adjusting Blink Speed
-
-```python
-# In main.py during setup:
-face.left_eye.set_blink_interval(2000)   # 2 seconds between blinks
-face.right_eye.set_blink_interval(2000)
-```
+1.  **Create a new class**: Create `YourNewTranscriber(AbstractTranscriber)` in `transcriber.py`.
+2.  **Implement `_load_model()`**: Load your ASR model within this method.
+3.  **Implement `_transcribe_audio(audio_np)`**: Process the `audio_np` (float32 array) and return the transcribed text string.
+4.  **Update `main.py` factory**: Add an `elif` condition to the transcriber factory in `main.py` to instantiate `YourNewTranscriber` when `TRANSCRIBER_BACKEND` is set to your new model's identifier.
+5.  **Update `requirements.txt`**: Add any new Python dependencies for your transcriber.
 
 ---
 
 ## Key Design Patterns
 
-### 1. **Component-Based Architecture**
-- Each component (Eye, Mouth) is self-contained
-- Components don't directly interact; Face coordinates them
-- Promotes reusability and testability
-
-### 2. **Color Inheritance**
-- Colors passed from main.py → Face → Components
-- Allows easy theming without modifying component code
-- Constants centralized in one location
-
-### 3. **State Machine (Blinking)**
-- Explicit states: IDLE, CLOSING, PAUSED, OPENING
-- Time-based transitions prevent frame-rate dependency
-- Easy to visualize and debug
-
-### 4. **Time-Based Animation**
-- Uses `pygame.time.get_ticks()` (milliseconds elapsed)
-- Frame-rate independent
-- Smooth interpolation between states
-
-### 5. **Data Normalization**
-- Audio normalized to [-1, 1] range
-- Components work with normalized data
-- Easy to scale with amplitude multipliers
-
-### 6. **Modular Shapes**
-- Waveform shapes defined as separate branches in `mouth.draw()`
-- Easy to add new shapes without affecting existing code
-- Each shape can have custom time-based animations
+1.  **Component-Based Architecture**: (As before)
+2.  **Dynamic Configuration (RABL)**: Externalizes emotion parameters, promoting flexibility and ease of customization.
+3.  **Abstract Factory / Strategy Pattern (Transcriber)**:
+    -   `AbstractTranscriber` defines a common interface.
+    -   `OpenAIWhisperTranscriber` and `FasterWhisperTranscriber` are concrete strategies.
+    -   The factory logic in `main.py` selects and instantiates the appropriate strategy at runtime.
+4.  **Multithreading**: `AudioHandler` and `Transcriber` run in separate threads, improving responsiveness.
+5.  **Producer-Consumer (Queues)**: `animation_queue`, `transcription_queue`, `text_queue` facilitate safe inter-thread communication.
+6.  **Event-Based Signaling**: `model_loaded_event` synchronizes model initialization with the main thread.
+7.  **Color Inheritance**: (As before)
+8.  **State Machine (Blinking)**: (As before)
+9.  **Time-Based Animation**: (As before)
+10. **Data Normalization & Amplification**: Standardizes audio input for consistent processing.
+11. **Modular Shapes**: (As before)
 
 ---
 
 ## Performance Considerations
 
-- **Audio Buffer Size**: 1024*2 samples provides good balance between responsiveness and CPU usage
-- **Draw Calls**: Minimal per frame (2 circles + lines per component)
-- **Pygame Rendering**: Hardware-accelerated on most systems
-- **Suitable for Edge Devices**: Lightweight enough for Raspberry Pi, Jetson Nano, etc.
+-   **Transcriber Model**: `faster-whisper` with `compute_type="int8"` is recommended for CPU-bound edge devices.
+-   **`TRANSCRIPTION_INTERVAL_SECONDS`**: A smaller interval reduces latency but increases CPU load. `0.5` seconds is a good balance.
+-   **`OVERLAP_SECONDS`**: Essential for transcription accuracy at chunk boundaries; `0.1` seconds is a reasonable default.
+-   **Audio Buffer Size**: `CHUNK` in `audio_handler.py` affects responsiveness and CPU usage.
+-   **Draw Calls**: Minimal per frame for efficient Pygame rendering.
 
 ---
 
 ## Troubleshooting Guide
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| No audio visualization | PyAudio stream closed | Check microphone is connected and permissions granted |
-| Eyes appear static | Blink interval very long | Check `set_emotion()` is being called correctly |
-| Mouth is distorted | Negative array indexing | Ensure audio buffer size is larger than mouth width |
-| Choppy animation | Low framerate | Reduce display resolution or close other apps |
-| Colors not applying | Wrong emotion state | Verify emotion is set via keyboard input (press M) |
+-   **RABL Parsing Errors**: Check `emotions.rabl` for correct YAML-like syntax and indentation. The `rabl_parser.py` now uses `PyYAML` for more robust parsing.
+-   **Transcription Model Not Loading**: Ensure `openai-whisper` or `faster-whisper` (and `torch` if using `openai-whisper`) are installed. Check console for "Whisper model not loaded" messages.
+-   **No Transcription Output**: Verify `transcription_queue` and `text_queue` are being populated. Check `transcriber.py` logs for errors.
+-   **Mouth Animation Issues**: Ensure `animation_queue` is receiving data. Check `face.py` and `mouth.py` for correct parameter passing from `emotion_config`.
+-   **General Performance**: Reduce display resolution, close other applications, or try a smaller Whisper model (`tiny.en`).
 
 ---
 
@@ -422,10 +361,11 @@ face.right_eye.set_blink_interval(2000)
 
 When integrating into RABBLE agent:
 
-1. **Emotion Control**: Call `face.set_emotion(emotion_name)` from agent logic
-2. **Audio Passthrough**: Route agent's audio output to system microphone or pipe PyAudio input
-3. **Headless Mode**: Could be adapted to render to file/network stream instead of display
-4. **Message Broadcasting**: Add event system to broadcast face state to other agent components
+1.  **Emotion Control**: Call `face.set_emotion(emotion_name)` from agent logic, using emotion names defined in `emotions.rabl`.
+2.  **Audio Passthrough**: Route agent's audio output to system microphone or pipe `AudioHandler` input.
+3.  **Transcribed Text**: Consume transcribed text from the `text_queue` in `main.py` for further agent processing.
+4.  **Headless Mode**: Could be adapted to render to file/network stream instead of display.
+5.  **Message Broadcasting**: Add event system to broadcast face state or transcribed text to other agent components.
 
 ---
 

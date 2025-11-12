@@ -6,6 +6,7 @@ import threading
 from face import Face
 from audio_handler import AudioHandler
 from transcriber import OpenAIWhisperTranscriber, FasterWhisperTranscriber
+from rabl_parser import parse_rabl
 
 # --- Constants ---
 TRANSCRIBER_BACKEND = "faster-whisper"  # Options: "openai", "faster-whisper"
@@ -15,11 +16,15 @@ EYE_COLOR = (150, 75, 150)     # Less saturated magenta
 WAVEFORM_COLOR = EYE_COLOR  # Mouth color same as eyes
 TEXT_COLOR = (255, 255, 255) # White
 
-EMOTIONS = ["IDLE", "HAPPY", "SAD", "ANGRY"]
-
 def main():
     """Main animation loop."""
     pygame.init()
+
+    # Load emotion configurations from RABL file
+    emotion_config_data = parse_rabl("Animated_Face_FrontEnd/emotions.rabl")
+    print("Parsed Emotion Config Data:")
+    print(emotion_config_data)
+    EMOTIONS = list(emotion_config_data['emotion_config'].keys()) # Get emotion names from config
 
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("RABBLE - Animated Face with Transcription")
@@ -42,11 +47,11 @@ def main():
     audio_handler.start()
     transcriber.start()
 
-    # Create face with inherited colors from constants
-    face = Face(WIDTH // 2, HEIGHT // 2, EYE_COLOR, WAVEFORM_COLOR, BACKGROUND_COLOR)
+    # Create face with inherited colors from constants and pass emotion config
+    face = Face(WIDTH // 2, HEIGHT // 2, EYE_COLOR, WAVEFORM_COLOR, BACKGROUND_COLOR, emotion_config_data['emotion_config'])
     
     current_emotion_index = 0 # Start with IDLE emotion
-    face.set_emotion(EMOTIONS[current_emotion_index])
+    face.set_emotion(EMOTIONS[current_emotion_index]) # Set initial emotion from loaded config
 
     running = True
     last_text = "Initializing Transcription..."

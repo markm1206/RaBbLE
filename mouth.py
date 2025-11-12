@@ -1,6 +1,9 @@
 import pygame
 import numpy as np
 
+# --- Waveform Configuration Constants ---
+DEFAULT_WAVEFORM_FREQUENCY = 0.05 # Consistent frequency for all waveforms
+BREATHING_EFFECT_AMPLITUDE = 0.15 # Reduced amplitude for the breathing effect (was 0.3)
 
 class Mouth:
     def __init__(self, x, y, width, color):
@@ -18,7 +21,7 @@ class Mouth:
         self.width = width
         self.color = color
 
-    def draw(self, screen, normalized_data, y_offset, amplitude_multiplier, shape="default", current_time=0, max_amplitude=None):
+    def draw(self, screen, normalized_data, y_offset, amplitude_multiplier, shape="default", current_time=0, max_amplitude=None, shape_params=None):
         """
         Draw the mouth based on audio data.
         
@@ -29,32 +32,40 @@ class Mouth:
             amplitude_multiplier: Multiplier for audio amplitude
             shape: Shape type ('default', 'parabolic', or 'saw')
             max_amplitude: The maximum vertical distance the waveform can travel from the center
+            shape_params: Dictionary of shape-specific parameters from RABL config.
         """
+        if shape_params is None:
+            shape_params = {}
+
         points = []
         start_index = len(normalized_data) // 2 - (self.width // 2)
         end_index = len(normalized_data) // 2 + (self.width // 2)
 
         # Time-varied amplitude for subtle breathing effect, ensuring a minimum waveform presence
-        time_amplitude_factor = 0.7 + 0.3 * np.sin(current_time * 0.004) # Increased speed
+        # Reduced amplitude for the breathing effect
+        time_amplitude_factor = 0.7 + BREATHING_EFFECT_AMPLITUDE * np.sin(current_time * 0.004)
 
         if shape == "parabolic":
+            parabolic_sine_frequency = shape_params.get('parabolic_sine_frequency', DEFAULT_WAVEFORM_FREQUENCY)
+            parabolic_sine_amplitude = shape_params.get('parabolic_sine_amplitude', 5) * time_amplitude_factor
+            
             for i, sample in enumerate(normalized_data[start_index:end_index]):
                 x = int(self.x - (self.width // 2) + (i / self.width * self.width))
                 curve_factor = 1 - (abs(i - (self.width // 2)) / (self.width // 2))**2
                 
-                # Add a slight, time-varied sine waveform
-                parabolic_sine_frequency = 0.03
-                parabolic_sine_amplitude = 5 * time_amplitude_factor
-                sine_undulation = parabolic_sine_amplitude * np.sin(i * parabolic_sine_frequency + current_time * 0.005)
+                sine_undulation = parabolic_sine_amplitude * np.sin(i * parabolic_sine_frequency + current_time * DEFAULT_WAVEFORM_FREQUENCY)
                 
                 y = self.y + y_offset * curve_factor + sample * amplitude_multiplier + sine_undulation
                 points.append((x, y))
         elif shape == "saw":
-            saw_period = self.width // 8 # Higher frequency
+            saw_period_divisor = shape_params.get('saw_period_divisor', 8)
+            base_amplitude = shape_params.get('base_amplitude', 20)
+            saw_period = self.width // saw_period_divisor
+            
             for i, sample in enumerate(normalized_data[start_index:end_index]):
                 x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-                pos_in_cycle = (i + int(current_time * 0.02)) % saw_period # Faster time-based movement
-                base_amplitude = 20 # Higher minimum amplitude
+                pos_in_cycle = (i + int(current_time * DEFAULT_WAVEFORM_FREQUENCY * 2)) % saw_period # Use default frequency
+                
                 if pos_in_cycle < saw_period / 2:
                     saw_offset = base_amplitude + (pos_in_cycle / (saw_period / 2)) * (40 * time_amplitude_factor)
                 else:
@@ -62,18 +73,18 @@ class Mouth:
                 y = self.y - saw_offset + sample * amplitude_multiplier
                 points.append((x, y))
         elif shape == "sine":
-            # Small undulating sine wave with time-based movement and amplitude
-            sine_frequency = 0.05 # Adjust for more or less waves
-            sine_amplitude = 10 * time_amplitude_factor # Adjust for height of undulation, time-varied
+            sine_frequency = shape_params.get('sine_frequency', DEFAULT_WAVEFORM_FREQUENCY)
+            sine_amplitude = shape_params.get('sine_amplitude', 10) * time_amplitude_factor
+            
             for i, sample in enumerate(normalized_data[start_index:end_index]):
                 x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-                sine_offset = sine_amplitude * (1 + np.sin(i * sine_frequency + current_time * 0.01)) # Increased speed
+                sine_offset = sine_amplitude * (1 + np.sin(i * sine_frequency + current_time * DEFAULT_WAVEFORM_FREQUENCY)) # Use default frequency
                 y = self.y + y_offset + sine_offset + sample * amplitude_multiplier
                 points.append((x, y))
         else:  # Default
             for i, sample in enumerate(normalized_data[start_index:end_index]):
                 x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-                y = self.y + sample * amplitude_multiplier
+                y = self.y + y_offset + sample * amplitude_multiplier # Apply y_offset to default shape
                 points.append((x, y))
 
         if max_amplitude is not None:
