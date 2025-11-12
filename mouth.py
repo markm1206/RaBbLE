@@ -1,10 +1,6 @@
 import pygame
 import numpy as np
 
-# --- Waveform Configuration Constants ---
-DEFAULT_WAVEFORM_FREQUENCY = 0.05 # Consistent frequency for all waveforms
-BREATHING_EFFECT_AMPLITUDE = 0.15 # Reduced amplitude for the breathing effect (was 0.3)
-
 class Mouth:
     def __init__(self, x, y, width, color):
         """
@@ -21,7 +17,8 @@ class Mouth:
         self.width = width
         self.color = color
 
-    def draw(self, screen, normalized_data, y_offset, amplitude_multiplier, shape="default", current_time=0, max_amplitude=None, shape_params=None):
+    def draw(self, screen, normalized_data, y_offset, amplitude_multiplier, shape="default", 
+             current_time=0, max_amplitude=None, shape_params=None, waveform_config=None):
         """
         Draw the mouth based on audio data.
         
@@ -30,63 +27,104 @@ class Mouth:
             normalized_data: Normalized audio data array
             y_offset: Vertical offset for the mouth shape
             amplitude_multiplier: Multiplier for audio amplitude
-            shape: Shape type ('default', 'parabolic', or 'saw')
+            shape: Shape type ('default', 'parabolic', 'sine', or 'saw')
+            current_time: Current time in milliseconds (from pygame.time.get_ticks())
             max_amplitude: The maximum vertical distance the waveform can travel from the center
-            shape_params: Dictionary of shape-specific parameters from RABL config.
+            shape_params: Dictionary of shape-specific parameters from RABL config
+            waveform_config: Dictionary containing base_frequency and breathing_amplitude
         """
         if shape_params is None:
             shape_params = {}
+        
+        if waveform_config is None:
+            waveform_config = {
+                'base_frequency': 1.0,
+                'breathing_amplitude': 0.15,
+                'line_width': 5
+            }
 
         points = []
         start_index = len(normalized_data) // 2 - (self.width // 2)
         end_index = len(normalized_data) // 2 + (self.width // 2)
 
-        # Time-varied amplitude for subtle breathing effect, ensuring a minimum waveform presence
-        # Reduced amplitude for the breathing effect
-        time_amplitude_factor = 0.7 + BREATHING_EFFECT_AMPLITUDE * np.sin(current_time * 0.004)
+        # Time-varied amplitude for subtle breathing effect
+        breathing_amplitude = waveform_config.get('breathing_amplitude', 0.15)
+        time_amplitude_factor = 0.7 + breathing_amplitude * np.sin(current_time * 0.004)
+
+        # Base frequency is normalized to screen width (1 cycle = full width)
+        base_frequency = waveform_config.get('base_frequency', 1.0)
 
         if shape == "parabolic":
-            parabolic_sine_frequency = shape_params.get('parabolic_sine_frequency', DEFAULT_WAVEFORM_FREQUENCY)
-            parabolic_sine_amplitude = shape_params.get('parabolic_sine_amplitude', 5) * time_amplitude_factor
+            # Parabolic shape with sine undulation - all points same Y at center
+            parabolic_sine_frequency = shape_params.get('parabolic_sine_frequency', 0.05)
+            parabolic_sine_amplitude = shape_params.get('parabolic_sine_amplitude', 5)
+            curve_factor_intensity = shape_params.get('curve_factor_intensity', 1.0)
             
             for i, sample in enumerate(normalized_data[start_index:end_index]):
                 x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-                curve_factor = 1 - (abs(i - (self.width // 2)) / (self.width // 2))**2
                 
-                sine_undulation = parabolic_sine_amplitude * np.sin(i * parabolic_sine_frequency + current_time * DEFAULT_WAVEFORM_FREQUENCY)
+                # Parabolic curve (inverted parabola, peak at center)
+                normalized_position = (i - (self.width // 2)) / (self.width // 2)  # -1 to 1
+                curve_factor = (1 - normalized_position**2) * curve_factor_intensity
                 
-                y = self.y + y_offset * curve_factor + sample * amplitude_multiplier + sine_undulation
+                # Sine undulation on top of parabolic curve
+                sine_undulation = (parabolic_sine_amplitude * time_amplitude_factor * 
+                                 np.sin(i * parabolic_sine_frequency * 2 * np.pi / self.width + 
+                                       current_time * base_frequency * 0.005))
+                
+                # Y position: center + audio amplitude + parabolic curve + sine undulation
+                y = self.y + y_offset + (sample * amplitude_multiplier) + (curve_factor * 20) + sine_undulation
                 points.append((x, y))
+
         elif shape == "saw":
+            # Sawtooth wave - middle point at center Y
             saw_period_divisor = shape_params.get('saw_period_divisor', 8)
-            base_amplitude = shape_params.get('base_amplitude', 20)
+            base_saw_amplitude = shape_params.get('base_amplitude', 20)
+            saw_frequency = shape_params.get('saw_frequency', 0.02)
+            
             saw_period = self.width // saw_period_divisor
             
             for i, sample in enumerate(normalized_data[start_index:end_index]):
                 x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-                pos_in_cycle = (i + int(current_time * DEFAULT_WAVEFORM_FREQUENCY * 2)) % saw_period # Use default frequency
                 
+                # Time-based sawtooth oscillation
+                pos_in_cycle = (i + int(current_time * base_frequency * saw_frequency * 100)) % saw_period
+                
+                # Sawtooth triangle wave (goes up then down)
                 if pos_in_cycle < saw_period / 2:
-                    saw_offset = base_amplitude + (pos_in_cycle / (saw_period / 2)) * (40 * time_amplitude_factor)
+                    saw_offset = (pos_in_cycle / (saw_period / 2)) * (base_saw_amplitude + 40 * time_amplitude_factor)
                 else:
-                    saw_offset = base_amplitude + (1 - ((pos_in_cycle - (saw_period / 2)) / (saw_period / 2))) * (40 * time_amplitude_factor)
-                y = self.y - saw_offset + sample * amplitude_multiplier
+                    saw_offset = ((saw_period - pos_in_cycle) / (saw_period / 2)) * (base_saw_amplitude + 40 * time_amplitude_factor)
+                
+                # Y position: center + audio amplitude + sawtooth offset
+                y = self.y + y_offset + (sample * amplitude_multiplier) + saw_offset
                 points.append((x, y))
+
         elif shape == "sine":
-            sine_frequency = shape_params.get('sine_frequency', DEFAULT_WAVEFORM_FREQUENCY)
-            sine_amplitude = shape_params.get('sine_amplitude', 10) * time_amplitude_factor
+            # Sine wave - all points same Y at center (sine oscillates around center)
+            sine_frequency = shape_params.get('sine_frequency', 0.015)
+            sine_amplitude = shape_params.get('sine_amplitude', 10)
             
             for i, sample in enumerate(normalized_data[start_index:end_index]):
                 x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-                sine_offset = sine_amplitude * (1 + np.sin(i * sine_frequency + current_time * DEFAULT_WAVEFORM_FREQUENCY)) # Use default frequency
-                y = self.y + y_offset + sine_offset + sample * amplitude_multiplier
-                points.append((x, y))
-        else:  # Default
-            for i, sample in enumerate(normalized_data[start_index:end_index]):
-                x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-                y = self.y + y_offset + sample * amplitude_multiplier # Apply y_offset to default shape
+                
+                # Pure sine wave with base frequency
+                sine_offset = (sine_amplitude * time_amplitude_factor * 
+                             (1 + np.sin(i * sine_frequency * 2 * np.pi / self.width + 
+                                        current_time * base_frequency * 0.01)))
+                
+                # Y position: center + audio amplitude + sine oscillation
+                y = self.y + y_offset + (sample * amplitude_multiplier) + sine_offset
                 points.append((x, y))
 
+        else:  # Default
+            # Simple line following audio amplitude
+            for i, sample in enumerate(normalized_data[start_index:end_index]):
+                x = int(self.x - (self.width // 2) + (i / self.width * self.width))
+                y = self.y + y_offset + (sample * amplitude_multiplier)
+                points.append((x, y))
+
+        # Clamp amplitude to prevent overlap with eyes
         if max_amplitude is not None:
             final_points = []
             for x, y in points:
@@ -94,5 +132,7 @@ class Mouth:
                 final_points.append((x, int(clamped_y)))
             points = final_points
 
+        # Draw the waveform
         if len(points) > 1:
-            pygame.draw.lines(screen, self.color, False, points, 5) # Smoother line
+            line_width = waveform_config.get('line_width', 5)
+            pygame.draw.lines(screen, self.color, False, points, line_width)

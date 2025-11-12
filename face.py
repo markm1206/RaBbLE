@@ -3,7 +3,7 @@ from mouth import Mouth
 
 
 class Face:
-    def __init__(self, x, y, eye_color, mouth_color, background_color, emotion_config):
+    def __init__(self, x, y, eye_color, mouth_color, background_color, emotion_config, face_config=None, waveform_config=None):
         """
         Initialize a Face component.
         
@@ -14,20 +14,39 @@ class Face:
             mouth_color: RGB tuple for mouth color (inherited from constructor)
             background_color: RGB tuple for background color
             emotion_config: Dictionary containing emotion configurations loaded from RABL.
+            face_config: Dictionary containing face positioning configuration from RABL.
+            waveform_config: Dictionary containing waveform configuration from RABL.
         """
         self.x = x
         self.y = y
         self.eye_color = eye_color
         self.mouth_color = mouth_color
         self.background_color = background_color
-        self.emotion_config = emotion_config # Store the emotion configuration
-        self.emotion = "IDLE" # Default to IDLE
+        self.emotion_config = emotion_config  # Store the emotion configuration
+        self.face_config = face_config or {}  # Store face configuration
+        self.waveform_config = waveform_config or {}  # Store waveform configuration
+        self.emotion = "IDLE"  # Default to IDLE
         
-        # Create eye and mouth components with inherited colors
-        eye_radius = 30
-        self.left_eye = Eye(x - 60, y - 40, eye_radius, eye_color, background_color, 'bottom')
-        self.right_eye = Eye(x + 60, y - 40, eye_radius, eye_color, background_color, 'top')
-        self.mouth = Mouth(x, y + 80, 300, mouth_color)
+        # Load eye configuration from face_config
+        eye_config = self.face_config.get('eye', {})
+        eye_radius = eye_config.get('radius', 30)
+        left_eye_x_offset = eye_config.get('left_x_offset', -60)
+        right_eye_x_offset = eye_config.get('right_x_offset', 60)
+        eye_y_offset = eye_config.get('y_offset', -40)
+        left_eyelid_pos = eye_config.get('left_eyelid_position', 'bottom')
+        right_eyelid_pos = eye_config.get('right_eyelid_position', 'top')
+        
+        # Create eye components with configuration
+        self.left_eye = Eye(x + left_eye_x_offset, y + eye_y_offset, eye_radius, eye_color, background_color, left_eyelid_pos)
+        self.right_eye = Eye(x + right_eye_x_offset, y + eye_y_offset, eye_radius, eye_color, background_color, right_eyelid_pos)
+        
+        # Load mouth configuration from face_config
+        mouth_config = self.face_config.get('mouth', {})
+        mouth_y_offset = mouth_config.get('y_offset', 80)
+        mouth_width = mouth_config.get('width', 300)
+        self.max_amplitude = mouth_config.get('max_amplitude', 90)
+        
+        self.mouth = Mouth(x, y + mouth_y_offset, mouth_width, mouth_color)
 
     def set_emotion(self, emotion):
         """Set the face emotion and update blink intervals accordingly from config."""
@@ -59,8 +78,6 @@ class Face:
         self.left_eye.draw(screen)
         self.right_eye.draw(screen)
 
-        max_amplitude = 90 # The vertical distance from mouth center to bottom of eyes
-
         # Get current emotion's mouth parameters from config
         config = self.emotion_config.get(self.emotion, {})
         mouth_shape = config.get('mouth_shape', 'default')
@@ -68,4 +85,5 @@ class Face:
         amplitude_multiplier = config.get('amplitude_multiplier', 600)
         shape_params = config.get('shape_params', {})
 
-        self.mouth.draw(screen, normalized_data, y_offset, amplitude_multiplier, mouth_shape, current_time, max_amplitude, shape_params)
+        self.mouth.draw(screen, normalized_data, y_offset, amplitude_multiplier, mouth_shape, current_time, 
+                       self.max_amplitude, shape_params, self.waveform_config)

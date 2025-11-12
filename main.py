@@ -8,23 +8,51 @@ from audio_handler import AudioHandler
 from transcriber import OpenAIWhisperTranscriber, FasterWhisperTranscriber
 from rabl_parser import parse_rabl
 
-# --- Constants ---
-TRANSCRIBER_BACKEND = "faster-whisper"  # Options: "openai", "faster-whisper"
-WIDTH, HEIGHT = 800, 600
-BACKGROUND_COLOR = (0, 0, 0)  # Black
-EYE_COLOR = (150, 75, 150)     # Less saturated magenta
-WAVEFORM_COLOR = EYE_COLOR  # Mouth color same as eyes
-TEXT_COLOR = (255, 255, 255) # White
-
 def main():
     """Main animation loop."""
     pygame.init()
 
-    # Load emotion configurations from RABL file
-    emotion_config_data = parse_rabl("Animated_Face_FrontEnd/emotions.rabl")
-    print("Parsed Emotion Config Data:")
-    print(emotion_config_data)
-    EMOTIONS = list(emotion_config_data['emotion_config'].keys()) # Get emotion names from config
+    # Load all configuration from RABL file
+    config_data = parse_rabl("Animated_Face_FrontEnd/emotions.rabl")
+    
+    if config_data is None:
+        print("Failed to load configuration. Exiting.")
+        return
+    
+    print("Parsed Configuration Data:")
+    print(config_data)
+    
+    # Extract configuration sections
+    display_config = config_data.get('display_config', {})
+    colors_config = config_data.get('colors', {})
+    face_config = config_data.get('face_config', {})
+    audio_config = config_data.get('audio_config', {})
+    transcription_config = config_data.get('transcription_config', {})
+    waveform_config = config_data.get('waveform_config', {})
+    emotion_config_data = config_data.get('emotion_config', {})
+    
+    # Display settings from RABL
+    WIDTH = display_config.get('width', 800)
+    HEIGHT = display_config.get('height', 600)
+    BACKGROUND_COLOR = tuple(display_config.get('background_color', [0, 0, 0]))
+    TEXT_COLOR = tuple(display_config.get('text_color', [255, 255, 255]))
+    
+    # Color scheme from RABL
+    EYE_COLOR = tuple(colors_config.get('eye_color', [150, 75, 150]))
+    WAVEFORM_COLOR = tuple(colors_config.get('waveform_color', [150, 75, 150]))
+    
+    # Audio settings from RABL
+    audio_chunk_size = audio_config.get('chunk_size', 2048)
+    audio_rate = audio_config.get('sample_rate', 16000)
+    audio_channels = audio_config.get('channels', 1)
+    audio_gain_factor = audio_config.get('gain_factor', 1.5)
+    
+    # Transcription settings from RABL
+    TRANSCRIBER_BACKEND = transcription_config.get('backend', 'faster-whisper')
+    TRANSCRIBER_MODEL = transcription_config.get('model_name', 'tiny.en')
+    
+    # Get emotions from config
+    EMOTIONS = list(emotion_config_data.keys())
 
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("RABBLE - Animated Face with Transcription")
@@ -37,18 +65,21 @@ def main():
     model_loaded_event = threading.Event()
 
     # --- Start Audio and Transcription Threads ---
-    audio_handler = AudioHandler(animation_queue, transcription_queue)
+    audio_handler = AudioHandler(animation_queue, transcription_queue, 
+                                chunk_size=audio_chunk_size, rate=audio_rate, 
+                                channels=audio_channels, gain_factor=audio_gain_factor)
     
     if TRANSCRIBER_BACKEND == "faster-whisper":
-        transcriber = FasterWhisperTranscriber(transcription_queue, text_queue, model_loaded_event)
+        transcriber = FasterWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, model_name=TRANSCRIBER_MODEL)
     else: # Default to openai
-        transcriber = OpenAIWhisperTranscriber(transcription_queue, text_queue, model_loaded_event)
+        transcriber = OpenAIWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, model_name=TRANSCRIBER_MODEL)
         
     audio_handler.start()
     transcriber.start()
 
-    # Create face with inherited colors from constants and pass emotion config
-    face = Face(WIDTH // 2, HEIGHT // 2, EYE_COLOR, WAVEFORM_COLOR, BACKGROUND_COLOR, emotion_config_data['emotion_config'])
+    # Create face with inherited colors from config and pass emotion config
+    face = Face(WIDTH // 2, HEIGHT // 2, EYE_COLOR, WAVEFORM_COLOR, BACKGROUND_COLOR, 
+               emotion_config_data, face_config, waveform_config)
     
     current_emotion_index = 0 # Start with IDLE emotion
     face.set_emotion(EMOTIONS[current_emotion_index]) # Set initial emotion from loaded config
