@@ -82,8 +82,10 @@ class Face:
         config = self.emotion_config.get(self.emotion, {})
         mouth_shape = config.get('mouth_shape', 'default')
         y_offset = config.get('y_offset', 0)
-        amplitude_multiplier = config.get('amplitude_multiplier', 600)
+        # Handle both old and new parameter names for backward compatibility
+        audio_amplitude_multiplier = config.get('audio_amplitude_multiplier', config.get('amplitude_multiplier', 60))
+        cycle_rate = config.get('cycle_rate', 1.0)
         shape_params = config.get('shape_params', {})
 
-        self.mouth.draw(screen, normalized_data, y_offset, amplitude_multiplier, mouth_shape, current_time, 
-                       self.max_amplitude, shape_params, self.waveform_config)
+        self.mouth.draw(screen, normalized_data, y_offset, audio_amplitude_multiplier, mouth_shape, current_time, 
+                       self.max_amplitude, shape_params, self.waveform_config, cycle_rate)

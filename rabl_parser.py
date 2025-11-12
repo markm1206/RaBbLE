@@ -4,6 +4,7 @@ import os
 def parse_rabl(file_path):
     """
     Parses a .rabl file (YAML-like structure) into a Python dictionary using PyYAML.
+    Also handles loading referenced config files (e.g., emotions_file reference).
     
     Args:
         file_path: Path to the RABL file. Can be relative or absolute.
@@ -29,9 +30,30 @@ def parse_rabl(file_path):
         with open(file_path, 'r') as f:
             data = yaml.safe_load(f)
         
+        # Check if there's a reference to another config file (e.g., emotions_file)
+        if isinstance(data, dict):
+            config_dir = os.path.dirname(file_path)
+            
+            # Handle emotions_file reference
+            if 'emotions_file' in data:
+                emotions_file_path = os.path.join(config_dir, data['emotions_file'])
+                emotions_file_path = os.path.normpath(emotions_file_path)
+                
+                print(f"Loading referenced emotions file from: {emotions_file_path}")
+                
+                with open(emotions_file_path, 'r') as f:
+                    emotions_data = yaml.safe_load(f)
+                
+                # Merge emotion_config from the separate file
+                if emotions_data and 'emotion_config' in emotions_data:
+                    data['emotion_config'] = emotions_data['emotion_config']
+                
+                # Remove the reference key from the main data
+                del data['emotions_file']
+        
         print(f"Successfully loaded RABL configuration.")
         return data
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         print(f"Error: RABL file not found at {file_path}")
         print(f"Current working directory: {os.getcwd()}")
         print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")

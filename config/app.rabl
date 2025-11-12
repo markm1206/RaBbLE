@@ -1,4 +1,4 @@
-# Emotion configuration for the RABBLE Animated Face Frontend
+# RABBLE Animated Face Frontend - Main Application Configuration
 
 # --- Display Configuration ---
 display_config:
@@ -53,40 +53,6 @@ waveform_config:
   breathing_amplitude: 0.15             # Breathing effect amplitude (0-1)
   line_width: 5                         # Line thickness for drawing
 
-# --- Emotion Configuration ---
-emotion_config:
-  IDLE:
-    blink_interval: 1000
-    mouth_shape: sine
-    y_offset: 0
-    amplitude_multiplier: 600
-    shape_params:
-      sine_frequency: 0.015             # Reduced frequency (0.015 * base_frequency)
-      sine_amplitude: 10
-  HAPPY:
-    blink_interval: 1000
-    mouth_shape: parabolic
-    y_offset: 0
-    amplitude_multiplier: 600
-    shape_params:
-      parabolic_sine_frequency: 0.05    # Relative to base frequency
-      parabolic_sine_amplitude: 5
-      curve_factor_intensity: 1.0       # Intensity of parabolic curvature
-  SAD:
-    blink_interval: 2000
-    mouth_shape: parabolic
-    y_offset: 0
-    amplitude_multiplier: 600
-    shape_params:
-      parabolic_sine_frequency: 0.05
-      parabolic_sine_amplitude: 5
-      curve_factor_intensity: 1.0
-  ANGRY:
-    blink_interval: 500
-    mouth_shape: saw
-    y_offset: 0
-    amplitude_multiplier: 700
-    shape_params:
-      saw_period_divisor: 8
-      base_amplitude: 20
-      saw_frequency: 0.02                # Frequency of sawtooth oscillation
+# --- Emotion Configuration File Reference ---
+# Emotions are defined in a separate emotions.rabl file for better organization
+emotions_file: "emotions.rabl"          # Path relative to this config directory

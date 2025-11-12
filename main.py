@@ -12,9 +12,9 @@ def main():
     """Main animation loop."""
     pygame.init()
 
-    # Load all configuration from RABL file
+    # Load all configuration from RABL file in config directory
     # The path is relative to the script's directory, so it will work from anywhere
-    config_data = parse_rabl("config.rabl")
+    config_data = parse_rabl("config/app.rabl")
     
     if config_data is None:
         print("Failed to load configuration. Exiting.")
