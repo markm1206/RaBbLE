@@ -32,16 +32,19 @@ class AudioHandler(threading.Thread):
                                   input=True,
                                   frames_per_buffer=self.chunk_size)
 
+        gain_factor = 1.5 # Amplify audio by 50%
         while self._running:
             try:
                 raw_data = self.stream.read(self.chunk_size, exception_on_overflow=False)
                 
-                # For transcription, we'll pass the raw bytes
-                self.transcription_queue.put(raw_data)
+                # --- For transcription, amplify the raw audio before passing it on ---
+                data_for_transcription = np.frombuffer(raw_data, dtype=np.int16)
+                amplified_data = (data_for_transcription * gain_factor).astype(np.int16)
+                self.transcription_queue.put(amplified_data.tobytes())
 
-                # For animation, we'll pass the normalized data
-                data = np.frombuffer(raw_data, dtype=np.int16)
-                normalized_data = data / (2.**15)
+                # --- For animation, use the original, un-amplified data ---
+                data_for_animation = np.frombuffer(raw_data, dtype=np.int16)
+                normalized_data = data_for_animation / (2.**15)
                 self.animation_queue.put(normalized_data)
 
             except IOError as e:

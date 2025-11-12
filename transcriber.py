@@ -6,6 +6,10 @@ import os
 from datetime import datetime
 from abc import ABC, abstractmethod
 
+# --- Transcriber Configuration Constants ---
+TRANSCRIPTION_INTERVAL_SECONDS = 0.5 # How often to attempt transcription
+OVERLAP_SECONDS = 0.1 # How much audio to overlap between transcription chunks
+
 class AbstractTranscriber(ABC, threading.Thread):
     """
     Abstract base class for transcriber implementations.
@@ -39,6 +43,10 @@ class AbstractTranscriber(ABC, threading.Thread):
         """
         The main loop of the transcriber thread.
         """
+        # Calculate buffer sizes in bytes
+        interval_buffer_size = int(self.sample_rate * TRANSCRIPTION_INTERVAL_SECONDS) * 2 # 2 bytes per int16 sample
+        overlap_buffer_size = int(self.sample_rate * OVERLAP_SECONDS) * 2 # 2 bytes per int16 sample
+
         self._load_model()
         self.model_loaded_event.set()
         print("Whisper model loaded.")
@@ -46,13 +54,21 @@ class AbstractTranscriber(ABC, threading.Thread):
         self._running = True
         while self._running:
             try:
+                # Continuously extend the audio buffer with new data
                 while not self.transcription_queue.empty():
                     self.audio_buffer.extend(self.transcription_queue.get_nowait())
 
-                if len(self.audio_buffer) > self.sample_rate:
-                    audio_np = np.frombuffer(self.audio_buffer, dtype=np.int16).astype(np.float32) / 32768.0
-                    self.audio_buffer.clear()
+                # Process the buffer if it has enough data for the transcription interval
+                if len(self.audio_buffer) >= interval_buffer_size:
+                    # Extract the chunk for transcription
+                    chunk_to_transcribe = self.audio_buffer[:interval_buffer_size]
+                    
+                    # Retain the overlap portion for the next chunk
+                    self.audio_buffer = self.audio_buffer[interval_buffer_size - overlap_buffer_size:]
 
+                    # Convert byte buffer to a float array that whisper can process
+                    audio_np = np.frombuffer(chunk_to_transcribe, dtype=np.int16).astype(np.float32) / 32768.0
+                    
                     text = self._transcribe_audio(audio_np)
                     if text:
                         self.text_queue.put(text)
@@ -60,7 +76,8 @@ class AbstractTranscriber(ABC, threading.Thread):
                             f.write(f"{text}\n")
 
             except queue.Empty:
-                continue
+                # If the queue is empty, wait a bit before checking again
+                threading.Event().wait(0.01) # Small sleep to prevent busy-waiting
             except Exception as e:
                 print(f"Transcription error: {e}")
 

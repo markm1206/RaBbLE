@@ -50,14 +50,15 @@ class Mouth:
                 y = self.y + y_offset * curve_factor + sample * amplitude_multiplier + sine_undulation
                 points.append((x, y))
         elif shape == "saw":
-            saw_period = self.width // 4
+            saw_period = self.width // 8 # Higher frequency
             for i, sample in enumerate(normalized_data[start_index:end_index]):
                 x = int(self.x - (self.width // 2) + (i / self.width * self.width))
-                pos_in_cycle = (i + int(current_time * 0.01)) % saw_period # Time-based movement
+                pos_in_cycle = (i + int(current_time * 0.02)) % saw_period # Faster time-based movement
+                base_amplitude = 20 # Higher minimum amplitude
                 if pos_in_cycle < saw_period / 2:
-                    saw_offset = (pos_in_cycle / (saw_period / 2)) * (40 * time_amplitude_factor) # Time-varied amplitude
+                    saw_offset = base_amplitude + (pos_in_cycle / (saw_period / 2)) * (40 * time_amplitude_factor)
                 else:
-                    saw_offset = (1 - ((pos_in_cycle - (saw_period / 2)) / (saw_period / 2))) * (40 * time_amplitude_factor) # Time-varied amplitude
+                    saw_offset = base_amplitude + (1 - ((pos_in_cycle - (saw_period / 2)) / (saw_period / 2))) * (40 * time_amplitude_factor)
                 y = self.y - saw_offset + sample * amplitude_multiplier
                 points.append((x, y))
         elif shape == "sine":
@@ -83,4 +84,4 @@ class Mouth:
             points = final_points
 
         if len(points) > 1:
-            pygame.draw.lines(screen, self.color, False, points, 4)
+            pygame.draw.lines(screen, self.color, False, points, 5) # Smoother line
