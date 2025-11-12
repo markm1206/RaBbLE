@@ -4,6 +4,8 @@
 
 This is a modular, lightweight animated face frontend designed as the visual interface for **RABBLE**, a voice-enabled AI assistant agent optimized for edge system deployment. The face serves as an intuitive, expressive way for RABBLE to communicate through animated visual feedback, complementing voice interactions with emotional expressions and real-time audio visualization.
 
+![RABBLE Animated Face Demo](RabbleAnimationV0.1.0.gif)
+
 ## Features
 
 - **Modular Component Architecture**: Cleanly separated components (Eyes, Mouth, Face) for easy modification and extension
