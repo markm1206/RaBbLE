@@ -3,3 +3,4 @@ pyaudio
 numpy
 openai-whisper
 torch
+faster-whisper

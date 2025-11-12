@@ -5,9 +5,10 @@ import numpy as np
 import threading
 from face import Face
 from audio_handler import AudioHandler
-from transcriber import WhisperTranscriber
+from transcriber import OpenAIWhisperTranscriber, FasterWhisperTranscriber
 
 # --- Constants ---
+TRANSCRIBER_BACKEND = "faster-whisper"  # Options: "openai", "faster-whisper"
 WIDTH, HEIGHT = 800, 600
 BACKGROUND_COLOR = (0, 0, 0)  # Black
 EYE_COLOR = (150, 75, 150)     # Less saturated magenta
@@ -32,7 +33,12 @@ def main():
 
     # --- Start Audio and Transcription Threads ---
     audio_handler = AudioHandler(animation_queue, transcription_queue)
-    transcriber = WhisperTranscriber(transcription_queue, text_queue, model_loaded_event)
+    
+    if TRANSCRIBER_BACKEND == "faster-whisper":
+        transcriber = FasterWhisperTranscriber(transcription_queue, text_queue, model_loaded_event)
+    else: # Default to openai
+        transcriber = OpenAIWhisperTranscriber(transcription_queue, text_queue, model_loaded_event)
+        
     audio_handler.start()
     transcriber.start()
 

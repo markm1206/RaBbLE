@@ -4,16 +4,11 @@ import numpy as np
 import torch
 import os
 from datetime import datetime
+from abc import ABC, abstractmethod
 
-try:
-    import whisper
-except ImportError:
-    print("Whisper not installed. Please install it with: pip install openai-whisper")
-    whisper = None
-
-class WhisperTranscriber(threading.Thread):
+class AbstractTranscriber(ABC, threading.Thread):
     """
-    Transcribes audio from a queue using the Whisper model in a separate thread.
+    Abstract base class for transcriber implementations.
     """
     def __init__(self, transcription_queue, text_queue, model_loaded_event, model_name="tiny.en", sample_rate=44100):
         super().__init__()
@@ -32,41 +27,35 @@ class WhisperTranscriber(threading.Thread):
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.log_file_path = os.path.join(log_dir, f"transcription_{timestamp}.log")
 
+    @abstractmethod
+    def _load_model(self):
+        pass
+
+    @abstractmethod
+    def _transcribe_audio(self, audio_np):
+        pass
+
     def run(self):
         """
         The main loop of the transcriber thread.
         """
-        if whisper:
-            print("Loading Whisper model...")
-            self.model = whisper.load_model(self.model_name)
-            self.model_loaded_event.set() # Signal that the model is loaded
-            print("Whisper model loaded.")
-        else:
-            print("Whisper model not loaded. Transcription disabled.")
-            return
+        self._load_model()
+        self.model_loaded_event.set()
+        print("Whisper model loaded.")
 
         self._running = True
         while self._running:
             try:
-                # Get all available audio data from the queue to process in a batch
                 while not self.transcription_queue.empty():
                     self.audio_buffer.extend(self.transcription_queue.get_nowait())
 
-                # Process the buffer if it has 0.5 seconds of audio data
-                if len(self.audio_buffer) > self.sample_rate: # Process every half-second
-                    # Convert byte buffer to a float array that whisper can process
+                if len(self.audio_buffer) > self.sample_rate:
                     audio_np = np.frombuffer(self.audio_buffer, dtype=np.int16).astype(np.float32) / 32768.0
-                    
-                    # Clear the buffer for the next chunk
                     self.audio_buffer.clear()
 
-                    # Transcribe
-                    result = self.model.transcribe(audio_np, fp16=torch.cuda.is_available())
-                    text = result['text'].strip()
-
+                    text = self._transcribe_audio(audio_np)
                     if text:
                         self.text_queue.put(text)
-                        # --- Log to File ---
                         with open(self.log_file_path, "a", encoding="utf-8") as f:
                             f.write(f"{text}\n")
 
@@ -76,7 +65,30 @@ class WhisperTranscriber(threading.Thread):
                 print(f"Transcription error: {e}")
 
     def stop(self):
-        """
-        Stops the transcriber thread.
-        """
         self._running = False
+
+class OpenAIWhisperTranscriber(AbstractTranscriber):
+    """
+    Transcriber implementation for openai-whisper.
+    """
+    def _load_model(self):
+        import whisper
+        self.model = whisper.load_model(self.model_name)
+
+    def _transcribe_audio(self, audio_np):
+        result = self.model.transcribe(audio_np, fp16=torch.cuda.is_available())
+        return result['text'].strip()
+
+class FasterWhisperTranscriber(AbstractTranscriber):
+    """
+    Transcriber implementation for faster-whisper.
+    """
+    def _load_model(self):
+        from faster_whisper import WhisperModel
+        # Use "int8" for faster CPU performance
+        self.model = WhisperModel(self.model_name, device="cpu", compute_type="int8")
+
+    def _transcribe_audio(self, audio_np):
+        segments, _ = self.model.transcribe(audio_np)
+        # Concatenate segments to form the full text
+        return " ".join([segment.text for segment in segments]).strip()
