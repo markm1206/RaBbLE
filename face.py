@@ -59,13 +59,15 @@ class Face:
         self.left_eye.draw(screen)
         self.right_eye.draw(screen)
 
+        max_amplitude = 90 # The vertical distance from mouth center to bottom of eyes
+
         if self.emotion == "SAD":
-            self.mouth.draw(screen, normalized_data, -40, 500, "parabolic", current_time)
+            self.mouth.draw(screen, normalized_data, -40, 500, "parabolic", current_time, max_amplitude)
         elif self.emotion == "HAPPY":
-            self.mouth.draw(screen, normalized_data, 40, 500, "parabolic", current_time)
+            self.mouth.draw(screen, normalized_data, 40, 500, "parabolic", current_time, max_amplitude)
         elif self.emotion == "ANGRY":
-            self.mouth.draw(screen, normalized_data, 0, 800, "saw", current_time)
+            self.mouth.draw(screen, normalized_data, 0, 800, "saw", current_time, max_amplitude)
         elif self.emotion == "IDLE":
-            self.mouth.draw(screen, normalized_data, 0, 200, "sine", current_time) # Subtle sine wave for idle
+            self.mouth.draw(screen, normalized_data, 0, 200, "sine", current_time, max_amplitude) # Subtle sine wave for idle
         else:
-            self.mouth.draw(screen, normalized_data, 0, 500, "default", current_time)
+            self.mouth.draw(screen, normalized_data, 0, 500, "default", current_time, max_amplitude)
