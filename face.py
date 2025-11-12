@@ -54,16 +54,18 @@ class Face:
         self.left_eye.update()
         self.right_eye.update()
 
-    def draw(self, screen, normalized_data):
+    def draw(self, screen, normalized_data, current_time):
         """Draw the face with its current emotion."""
         self.left_eye.draw(screen)
         self.right_eye.draw(screen)
 
         if self.emotion == "SAD":
-            self.mouth.draw(screen, normalized_data, -40, 500, "parabolic")
+            self.mouth.draw(screen, normalized_data, -40, 500, "parabolic", current_time)
         elif self.emotion == "HAPPY":
-            self.mouth.draw(screen, normalized_data, 40, 500, "parabolic")
+            self.mouth.draw(screen, normalized_data, 40, 500, "parabolic", current_time)
         elif self.emotion == "ANGRY":
-            self.mouth.draw(screen, normalized_data, 0, 800, "saw")
+            self.mouth.draw(screen, normalized_data, 0, 800, "saw", current_time)
+        elif self.emotion == "IDLE":
+            self.mouth.draw(screen, normalized_data, 0, 200, "sine", current_time) # Subtle sine wave for idle
         else:
-            self.mouth.draw(screen, normalized_data, 0, 500)
+            self.mouth.draw(screen, normalized_data, 0, 500, "default", current_time)

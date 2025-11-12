@@ -16,7 +16,7 @@ FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 44100
 
-EMOTIONS = ["HAPPY", "SAD", "ANGRY"]
+EMOTIONS = ["IDLE", "HAPPY", "SAD", "ANGRY"]
 
 
 def main():
@@ -36,7 +36,7 @@ def main():
     # Create face with inherited colors from constants
     face = Face(WIDTH // 2, HEIGHT // 2, EYE_COLOR, WAVEFORM_COLOR, BACKGROUND_COLOR)
     
-    current_emotion_index = 0
+    current_emotion_index = 0 # Start with IDLE emotion
     face.set_emotion(EMOTIONS[current_emotion_index])
 
     running = True
@@ -56,11 +56,13 @@ def main():
 
         screen.fill(BACKGROUND_COLOR)
 
+        current_time = pygame.time.get_ticks() # Get current time
+
         try:
             raw_data = stream.read(CHUNK)
             data = np.frombuffer(raw_data, dtype=np.int16)
             normalized_data = data / (2.**15)
-            face.draw(screen, normalized_data)
+            face.draw(screen, normalized_data, current_time) # Pass current_time
         except IOError as e:
             print(e)
 
