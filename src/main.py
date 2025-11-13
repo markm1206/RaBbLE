@@ -6,70 +6,62 @@ import threading
 from collections import deque # Needed for WordDisplayManager
 import time # Needed for delta_time calculation
 import signal # For graceful shutdown
-from face import Face
-from audio_handler import AudioHandler
-from transcriber import OpenAIWhisperTranscriber, FasterWhisperTranscriber, print_supported_gpu_devices
-from rabl_parser import parse_rabl
-from word_display_manager import WordDisplayManager # Import the new class
+from src.animation.face import Face
+from src.audio.audio_handler import AudioHandler
+from src.transcription.transcriber import OpenAIWhisperTranscriber, FasterWhisperTranscriber, print_supported_gpu_devices
+# from src.config.rabl_parser import parse_rabl # No longer directly used
+from src.ui.word_display_manager import WordDisplayManager
+from src.config.config_loader import ConfigLoader
 
 def main():
     """Main animation loop."""
     pygame.init()
 
-    # Load all configuration from RABL file in config directory
-    # The path is relative to the script's directory, so it will work from anywhere
-    config_data = parse_rabl("config/app.rabl")
+    # Load all configuration using the new ConfigLoader
+    config_loader = ConfigLoader()
+    config = config_loader.load_config()
     
-    if config_data is None:
+    if not config:
         print("Failed to load configuration. Exiting.")
         return
     
-    print("Parsed Configuration Data:")
-    print(config_data)
+    config_loader.print_config()
     
-    # Extract configuration sections
-    display_config = config_data.get('display_config', {})
-    colors_config = config_data.get('colors', {})
-    face_config = config_data.get('face_config', {})
-    audio_config = config_data.get('audio_config', {})
-    waveform_config = config_data.get('waveform_config', {})
-    emotion_config_data = config_data.get('emotion_config', {})
-    transcription_config = config_data.get('transcription_config', {}) # Now loaded from separate file
+    # Display settings from ConfigLoader
+    WIDTH = config_loader.get('display_config.width', 800)
+    HEIGHT = config_loader.get('display_config.height', 600)
+    BACKGROUND_COLOR = tuple(config_loader.get('display_config.background_color', [0, 0, 0]))
+    TEXT_COLOR = tuple(config_loader.get('display_config.text_color', [255, 255, 255]))
     
-    # Display settings from RABL
-    WIDTH = display_config.get('width', 800)
-    HEIGHT = display_config.get('height', 600)
-    BACKGROUND_COLOR = tuple(display_config.get('background_color', [0, 0, 0]))
-    TEXT_COLOR = tuple(display_config.get('text_color', [255, 255, 255]))
+    # Color scheme from ConfigLoader
+    EYE_COLOR = tuple(config_loader.get('colors.eye_color', [150, 75, 150]))
+    WAVEFORM_COLOR = tuple(config_loader.get('colors.waveform_color', [150, 75, 150]))
     
-    # Color scheme from RABL
-    EYE_COLOR = tuple(colors_config.get('eye_color', [150, 75, 150]))
-    WAVEFORM_COLOR = tuple(colors_config.get('waveform_color', [150, 75, 150]))
+    # Audio settings from ConfigLoader
+    audio_chunk_size = config_loader.get('audio_config.chunk_size', 2048)
+    audio_rate = config_loader.get('audio_config.sample_rate', 16000)
+    audio_channels = config_loader.get('audio_config.channels', 1)
+    audio_gain_factor = config_loader.get('audio_config.gain_factor', 1.5)
     
-    # Audio settings from RABL
-    audio_chunk_size = audio_config.get('chunk_size', 2048)
-    audio_rate = audio_config.get('sample_rate', 16000)
-    audio_channels = audio_config.get('channels', 1)
-    audio_gain_factor = audio_config.get('gain_factor', 1.5)
-    
-    # Transcription settings from RABL
-    TRANSCRIBER_BACKEND = transcription_config.get('backend', 'faster-whisper')
-    TRANSCRIBER_MODEL = transcription_config.get('model_name', 'tiny.en')
-    TRANSCRIBER_DEVICE = transcription_config.get('device', 'cpu')
-    TRANSCRIPTION_INTERVAL_SECONDS = transcription_config.get('interval_seconds', 0.5)
-    OVERLAP_SECONDS = transcription_config.get('overlap_seconds', 0.1)
-    VAD_FILTER = transcription_config.get('vad_filter', False)
-    VAD_PARAMETERS = transcription_config.get('vad_parameters', {})
-    TRANSCRIPTION_HISTORY_SIZE = transcription_config.get('transcription_history_size', 50)
-    CLEANUP_STRATEGY = transcription_config.get('cleanup_strategy', 'none')
+    # Transcription settings from ConfigLoader
+    TRANSCRIBER_BACKEND = config_loader.get('transcription_config.backend', 'faster-whisper')
+    TRANSCRIBER_MODEL = config_loader.get('transcription_config.model_name', 'tiny.en')
+    TRANSCRIBER_DEVICE = config_loader.get('transcription_config.device', 'cpu')
+    TRANSCRIPTION_INTERVAL_SECONDS = config_loader.get('transcription_config.interval_seconds', 0.5)
+    OVERLAP_SECONDS = config_loader.get('transcription_config.overlap_seconds', 0.1)
+    VAD_FILTER = config_loader.get('transcription_config.vad_filter', False)
+    VAD_PARAMETERS = config_loader.get('transcription_config.vad_parameters', {})
+    TRANSCRIPTION_HISTORY_SIZE = config_loader.get('transcription_config.transcription_history_size', 50)
+    CLEANUP_STRATEGY = config_loader.get('transcription_config.cleanup_strategy', 'none')
 
-    # Word Display settings from RABL
-    SCROLL_SPEED = transcription_config.get('scroll_speed', 70)
-    WORD_DISPLAY_INTERVAL_MS = transcription_config.get('word_display_interval_ms', 150)
-    DISPLAY_TEXT_Y_OFFSET = transcription_config.get('display_text_y_offset', 50)
+    # Word Display settings from ConfigLoader
+    SCROLL_SPEED = config_loader.get('transcription_config.scroll_speed', 70)
+    WORD_DISPLAY_INTERVAL_MS = config_loader.get('transcription_config.word_display_interval_ms', 150)
+    DISPLAY_TEXT_Y_OFFSET = config_loader.get('transcription_config.display_text_y_offset', 50)
+    TEXT_START_OFFSET = config_loader.get('transcription_config.text_start_offset', 50) # New config for text offset
     
     # Get emotions from config
-    EMOTIONS = list(emotion_config_data.keys())
+    EMOTIONS = list(config_loader.get('emotion_config', {}).keys())
 
     # Print supported GPU devices at startup
     print_supported_gpu_devices()
@@ -80,9 +72,12 @@ def main():
 
     # --- Queues and Events for Thread Communication ---
     animation_queue = queue.Queue(maxsize=2)
-    transcription_queue = queue.Queue() # Revert to unbounded queue
-    # text_queue is no longer needed as Transcriber will directly interact with WordDisplayManager
-    model_loaded_event = threading.Event()
+    transcription_queue = queue.Queue()
+    model_loaded_event = threading.Event() # For AudioHandler to wait for Transcriber
+    transcriber_ready_event = threading.Event() # For WordDisplayManager to know when transcriber is ready
+
+    # Queue for transcribed text to be sent to WordDisplayManager
+    transcribed_text_queue = queue.Queue()
 
     # Initialize WordDisplayManager
     word_display_manager = WordDisplayManager(
@@ -92,7 +87,10 @@ def main():
         screen_height=HEIGHT,
         scroll_speed=SCROLL_SPEED,
         word_display_interval_ms=WORD_DISPLAY_INTERVAL_MS,
-        display_text_y_offset=DISPLAY_TEXT_Y_OFFSET
+        display_text_y_offset=DISPLAY_TEXT_Y_OFFSET,
+        transcribed_text_queue=transcribed_text_queue,
+        text_start_offset=TEXT_START_OFFSET,
+        transcriber_ready_event=transcriber_ready_event # Pass the new event
     )
 
     # --- Start Audio and Transcription Threads ---
@@ -101,7 +99,8 @@ def main():
                                 channels=audio_channels, gain_factor=audio_gain_factor)
     
     if TRANSCRIBER_BACKEND == "faster-whisper":
-        transcriber = FasterWhisperTranscriber(transcription_queue, word_display_manager, model_loaded_event, 
+        transcriber = FasterWhisperTranscriber(transcription_queue, transcribed_text_queue, model_loaded_event, 
+                                               transcriber_ready_event, # Pass the new event
                                                model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
                                                interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
                                                overlap_seconds=OVERLAP_SECONDS,
@@ -110,20 +109,23 @@ def main():
         transcriber.vad_filter = VAD_FILTER
         transcriber.vad_parameters = VAD_PARAMETERS
     else: # Default to openai
-        transcriber = OpenAIWhisperTranscriber(transcription_queue, word_display_manager, model_loaded_event, 
+        transcriber = OpenAIWhisperTranscriber(transcription_queue, transcribed_text_queue, model_loaded_event, 
+                                              transcriber_ready_event, # Pass the new event
                                               model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
                                               interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
                                               overlap_seconds=OVERLAP_SECONDS,
                                               transcription_history_size=TRANSCRIPTION_HISTORY_SIZE,
                                               cleanup_strategy=CLEANUP_STRATEGY)
-        # OpenAI Whisper does not have built-in VAD like Faster-Whisper, so VAD parameters are not used directly.
         
     audio_handler.start()
     transcriber.start()
 
+    # The main loop will now handle drawing the loading message via WordDisplayManager
+    # No blocking wait here.
+    print("Transcription model loading in background...")
+
     # Create face with inherited colors from config and pass emotion config
-    face = Face(WIDTH // 2, HEIGHT // 2, EYE_COLOR, WAVEFORM_COLOR, BACKGROUND_COLOR, 
-               emotion_config_data, face_config, waveform_config)
+    face = Face(WIDTH // 2, HEIGHT // 2, config_loader)
     
     current_emotion_index = 0 # Start with IDLE emotion
     face.set_emotion(EMOTIONS[current_emotion_index]) # Set initial emotion from loaded config

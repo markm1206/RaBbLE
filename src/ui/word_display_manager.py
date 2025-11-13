@@ -1,5 +1,7 @@
 import pygame
 from collections import deque
+import queue # Import queue for thread-safe communication
+import threading # Import threading for Event
 
 class WordDisplayManager:
     """
@@ -9,7 +11,9 @@ class WordDisplayManager:
     and existing words moving back.
     """
     def __init__(self, font, text_color, screen_width, screen_height,
-                 scroll_speed=70, word_display_interval_ms=150, display_text_y_offset=50):
+                 scroll_speed=70, word_display_interval_ms=150, display_text_y_offset=50,
+                 transcribed_text_queue=None, text_start_offset=50,
+                 transcriber_ready_event=None): # New parameter for transcriber ready event
         self.font = font
         self.text_color = text_color
         self.screen_width = screen_width
@@ -24,20 +28,27 @@ class WordDisplayManager:
         self.last_word_display_time = pygame.time.get_ticks()
         self.current_line_width = 0 # Track width of words on the current line
         self.word_spacing = 10 # Pixels between words
-
-    def add_transcribed_text(self, text):
-        """
-        Adds new transcribed text to the pending queue, splitting it into words.
-        """
-        words = text.split()
-        for word in words:
-            self.pending_display_words.append(word)
+        self.transcribed_text_queue = transcribed_text_queue # Store the queue
+        self.text_start_offset = text_start_offset # Offset from center for new words
+        self.transcriber_ready_event = transcriber_ready_event # Store the event
 
     def update(self, delta_time):
         """
         Updates the position of active words and moves new words from pending to active.
+        Also pulls new transcribed text from the queue.
         delta_time is in milliseconds.
         """
+        # Only process transcribed words if the transcriber is ready
+        if not self.transcriber_ready_event.is_set():
+            return # Do not update words if transcriber is not ready
+
+        # Pull new transcribed text from the queue and add to pending_display_words
+        while not self.transcribed_text_queue.empty():
+            text = self.transcribed_text_queue.get()
+            words = text.split()
+            for word in words:
+                self.pending_display_words.append(word)
+
         # Add new words from pending to active at a uniform rate
         current_time = pygame.time.get_ticks()
         if self.pending_display_words and (current_time - self.last_word_display_time) >= self.word_display_interval_ms:
@@ -45,12 +56,10 @@ class WordDisplayManager:
             word_surface = self.font.render(new_word_text, True, self.text_color)
             word_width = word_surface.get_width()
 
-            # Add new word to the right of the last word, or at the center if it's the first word
+            # Add new word to the right of the last word, or at the center + offset if it's the first word
             if not self.active_display_words:
-                # First word, start from center-right
-                new_word_x = self.screen_width / 2 + self.word_spacing / 2
+                new_word_x = self.screen_width / 2 + self.text_start_offset
             else:
-                # Place new word after the last word
                 last_word = self.active_display_words[-1]
                 new_word_x = last_word['x'] + last_word['width'] + self.word_spacing
             
@@ -71,7 +80,6 @@ class WordDisplayManager:
             self.active_display_words.popleft()
 
         # Remove words that have scrolled off the right margin (if they were added far right)
-        # This is less likely with the new centered approach, but good for robustness
         while self.active_display_words and self.active_display_words[-1]['x'] > self.screen_width:
             self.active_display_words.pop()
 
@@ -79,14 +87,18 @@ class WordDisplayManager:
     def draw(self, screen):
         """
         Draws all active words on the screen, centered vertically.
+        If the transcriber is not ready, it draws a loading message instead.
         """
+        if not self.transcriber_ready_event.is_set():
+            loading_message = "Initializing Transcription..."
+            loading_surface = self.font.render(loading_message, True, self.text_color)
+            loading_rect = loading_surface.get_rect(center=(self.screen_width // 2, self.screen_height - self.display_text_y_offset))
+            screen.blit(loading_surface, loading_rect)
+            return
+
         # Calculate the total width of all active words to center them
         total_words_width = sum(word['width'] for word in self.active_display_words) + \
                             max(0, len(self.active_display_words) - 1) * self.word_spacing
-        
-        # Calculate the starting X position to center the block of text
-        # This logic needs to be carefully considered for a "word queue that is anchored to the center"
-        # For now, let's keep the words flowing from right to left, but ensure they are within bounds.
         
         # The y position is fixed at the bottom of the screen
         text_y = self.screen_height - self.display_text_y_offset - self.line_height / 2 # Center vertically on the line

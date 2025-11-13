@@ -16,3 +16,4 @@ transcription_config:
   scroll_speed: 180                     # Pixels per second for word scrolling
   word_display_interval_ms: 150         # Milliseconds between each new word appearing
   display_text_y_offset: 50             # Vertical offset from the bottom of the screen for text
+  text_start_offset: 50                 # Horizontal offset from center for new words

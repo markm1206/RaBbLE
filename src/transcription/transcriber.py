@@ -23,14 +23,15 @@ class AbstractTranscriber(ABC, threading.Thread):
     """
     Abstract base class for transcriber implementations.
     """
-    def __init__(self, transcription_queue, word_display_manager, model_loaded_event, 
+    def __init__(self, transcription_queue, transcribed_text_queue, model_loaded_event, transcriber_ready_event,
                  model_name="tiny.en", sample_rate=44100, device="cpu",
                  interval_seconds=0.5, overlap_seconds=0.1,
                  transcription_history_size=50, cleanup_strategy="none"):
         super().__init__()
         self.transcription_queue = transcription_queue
-        self.word_display_manager = word_display_manager # Direct reference to the display manager
-        self.model_loaded_event = model_loaded_event
+        self.transcribed_text_queue = transcribed_text_queue
+        self.model_loaded_event = model_loaded_event # For AudioHandler to wait for Transcriber
+        self.transcriber_ready_event = transcriber_ready_event # For WordDisplayManager to know when transcriber is ready
         self.model_name = model_name
         self.sample_rate = sample_rate
         self.device = device
@@ -44,7 +45,7 @@ class AbstractTranscriber(ABC, threading.Thread):
         self.audio_buffer = bytearray()
 
         # --- Setup for Logging ---
-        log_dir = os.path.join(os.path.dirname(__file__), "logs")
+        log_dir = os.path.join(os.path.dirname(__file__), "..", "..", "logs") # Adjusted path for new structure
         os.makedirs(log_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.log_file_path = os.path.join(log_dir, f"transcription_{timestamp}.log")
@@ -76,7 +77,8 @@ class AbstractTranscriber(ABC, threading.Thread):
         except Exception as e:
             print(f"Warm-up inference failed: {e}")
         
-        self.model_loaded_event.set()
+        self.model_loaded_event.set() # Signal AudioHandler that model is loaded
+        self.transcriber_ready_event.set() # Signal WordDisplayManager that transcriber is ready
         print(f"Whisper model ready for transcription.")
 
         self._running = True
@@ -103,8 +105,8 @@ class AbstractTranscriber(ABC, threading.Thread):
                     if text:
                         cleaned_text = self._apply_cleanup_strategy(text)
                         if cleaned_text:
-                            # Directly send to WordDisplayManager and log
-                            self.word_display_manager.add_transcribed_text(cleaned_text)
+                            # Put cleaned text into the queue for WordDisplayManager and log
+                            self.transcribed_text_queue.put(cleaned_text)
                             with open(self.log_file_path, "a", encoding="utf-8") as f:
                                 f.write(f"{cleaned_text}\n")
                             self._update_transcription_history(cleaned_text)

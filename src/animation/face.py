@@ -1,31 +1,29 @@
-from eye import Eye
-from mouth import Mouth
-
+from .eye import Eye
+from .mouth import Mouth
+from src.config.config_loader import ConfigLoader # Import ConfigLoader
 
 class Face:
-    def __init__(self, x, y, eye_color, mouth_color, background_color, emotion_config, face_config=None, waveform_config=None):
+    def __init__(self, x, y, config_loader: ConfigLoader):
         """
         Initialize a Face component.
         
         Args:
             x: X position of the face center
             y: Y position of the face center
-            eye_color: RGB tuple for eye color (inherited from constructor)
-            mouth_color: RGB tuple for mouth color (inherited from constructor)
-            background_color: RGB tuple for background color
-            emotion_config: Dictionary containing emotion configurations loaded from RABL.
-            face_config: Dictionary containing face positioning configuration from RABL.
-            waveform_config: Dictionary containing waveform configuration from RABL.
+            config_loader: An instance of ConfigLoader to retrieve all configurations.
         """
         self.x = x
         self.y = y
-        self.eye_color = eye_color
-        self.mouth_color = mouth_color
-        self.background_color = background_color
-        self.emotion_config = emotion_config  # Store the emotion configuration
-        self.face_config = face_config or {}  # Store face configuration
-        self.waveform_config = waveform_config or {}  # Store waveform configuration
+        self.config_loader = config_loader
         self.emotion = "IDLE"  # Default to IDLE
+
+        # Retrieve configurations using config_loader
+        self.eye_color = tuple(self.config_loader.get('colors.eye_color', [150, 75, 150]))
+        self.mouth_color = tuple(self.config_loader.get('colors.waveform_color', [150, 75, 150]))
+        self.background_color = tuple(self.config_loader.get('display_config.background_color', [0, 0, 0]))
+        self.emotion_config = self.config_loader.get('emotion_config', {})
+        self.face_config = self.config_loader.get('face_config', {})
+        self.waveform_config = self.config_loader.get('waveform_config', {})
         
         # Load eye configuration from face_config
         eye_config = self.face_config.get('eye', {})
@@ -37,8 +35,8 @@ class Face:
         right_eyelid_pos = eye_config.get('right_eyelid_position', 'top')
         
         # Create eye components with configuration
-        self.left_eye = Eye(x + left_eye_x_offset, y + eye_y_offset, eye_radius, eye_color, background_color, left_eyelid_pos)
-        self.right_eye = Eye(x + right_eye_x_offset, y + eye_y_offset, eye_radius, eye_color, background_color, right_eyelid_pos)
+        self.left_eye = Eye(x + left_eye_x_offset, y + eye_y_offset, eye_radius, self.eye_color, self.background_color, left_eyelid_pos)
+        self.right_eye = Eye(x + right_eye_x_offset, y + eye_y_offset, eye_radius, self.eye_color, self.background_color, right_eyelid_pos)
         
         # Load mouth configuration from face_config
         mouth_config = self.face_config.get('mouth', {})
@@ -46,7 +44,7 @@ class Face:
         mouth_width = mouth_config.get('width', 300)
         self.max_amplitude = mouth_config.get('max_amplitude', 90)
         
-        self.mouth = Mouth(x, y + mouth_y_offset, mouth_width, mouth_color)
+        self.mouth = Mouth(x, y + mouth_y_offset, mouth_width, self.mouth_color)
 
     def set_emotion(self, emotion):
         """Set the face emotion and update blink intervals accordingly from config."""

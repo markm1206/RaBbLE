@@ -68,9 +68,11 @@ Animated_Face_FrontEnd/
 ├── eye.py                     # Eye component (blinking, rendering)
 ├── mouth.py                   # Mouth component (audio visualization)
 ├── config/
-│   ├── app.rabl               # Main application configuration
-│   ├── emotions.rabl          # Emotion-specific configurations
-│   └── transcription.rabl     # Transcription and word display settings
+│   ├── audio.rabl             # Audio capture and processing configuration
+│   ├── display.rabl           # Display settings (resolution, colors)
+│   ├── emotions.rabl          # Emotion-specific animation parameters
+│   ├── face_layout.rabl       # Face component positioning and sizing
+│   └── transcription.rabl     # Transcription model and word display settings
 ├── requirements.txt           # Python dependencies
 ├── README.md                  # This file
 └── CODEREVIEW.md              # Developer guide
@@ -100,24 +102,36 @@ main.py (Orchestration, GUI)
 
 ### Configuration Structure
 
-The configuration is split into three main files, which are all loaded and parsed by `rabl_parser.py`:
+The configuration is split into multiple `.rabl` files, which are all loaded and parsed by `src/config/config_loader.py`:
 
 ```
 config/
-├── app.rabl             # Main application settings (display, audio, face positioning)
+├── audio.rabl           # Audio capture and processing configuration
+├── display.rabl         # Display settings (resolution, colors)
 ├── emotions.rabl        # Emotion-specific animation parameters
+├── face_layout.rabl     # Face component positioning and sizing
 └── transcription.rabl   # Transcription model and word display settings
 ```
 
-### `app.rabl` - Main Application Configuration
+### `audio.rabl` - Audio Configuration
 
-This file contains global settings for the application window, colors, and the physical layout of the face components.
+This file contains settings related to audio input, amplification, and processing.
 
-- **`display_config`**: Screen resolution and colors.
-- **`colors`**: Defines the color palette for the eyes and mouth.
-- **`face_config`**: Controls the size and position of the eyes and mouth.
-- **`audio_config`**: Settings for audio capture, such as sample rate and gain.
-- **`waveform_config`**: Base parameters for the mouth's waveform animations.
+- **`audio_config`**: Settings for audio capture, such as sample rate, chunk size, and gain.
+
+### `display.rabl` - Display Configuration
+
+This file defines the main application window settings and color palette.
+
+- **`display_config`**: Screen resolution (width, height) and caption.
+- **`colors`**: Defines the color palette for various UI elements, including eyes, mouth, and background.
+
+### `face_layout.rabl` - Face Layout Configuration
+
+This file controls the size and position of the face components (eyes and mouth) on the screen.
+
+- **`face_config`**: Controls the size and position of the eyes and mouth, including eye radius, eye spacing, mouth width, and mouth height.
+- **`waveform_config`**: Base parameters for the mouth's waveform animations, such as default frequency and breathing effect amplitude.
 
 ### `emotions.rabl` - Emotion-Specific Configuration
 

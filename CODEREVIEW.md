@@ -280,9 +280,11 @@ Animated_Face_FrontEnd/
 ├── eye.py                     # Eye component (blinking, rendering)
 ├── mouth.py                   # Mouth component (audio visualization)
 ├── config/
-│   ├── app.rabl               # Main application configuration
-│   ├── emotions.rabl          # Emotion-specific configurations
-│   └── transcription.rabl     # Transcription and word display settings
+│   ├── audio.rabl             # Audio capture and processing configuration
+│   ├── display.rabl           # Display settings (resolution, colors)
+│   ├── emotions.rabl          # Emotion-specific animation parameters
+│   ├── face_layout.rabl       # Face component positioning and sizing
+│   └── transcription.rabl     # Transcription model and word display settings
 ├── requirements.txt           # Python dependencies
 ├── README.md                  # This file
 └── CODEREVIEW.md              # Developer guide
