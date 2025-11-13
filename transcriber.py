@@ -31,10 +31,9 @@ class AbstractTranscriber(ABC, threading.Thread):
         self.model_name = model_name
         self.sample_rate = sample_rate
         self.device = device
-        # compute_type will be determined dynamically within _load_model for FasterWhisper
-        # and implicitly handled by fp16 for OpenAIWhisper
         self.interval_seconds = interval_seconds
         self.overlap_seconds = overlap_seconds
+        # VAD parameters will be handled directly by FasterWhisperTranscriber
         self._running = False
         self.model = None
         self.audio_buffer = bytearray()
@@ -105,12 +104,16 @@ class OpenAIWhisperTranscriber(AbstractTranscriber):
     def _load_model(self):
         import whisper
         self.model = whisper.load_model(self.model_name, device=self.device)
+        print(f"OpenAI Whisper model '{self.model_name}' loaded on {self.device}.")
+        print(f"  Quantization: {'FP16' if self.device == 'cuda' else 'FP32'}")
 
     def _transcribe_audio(self, audio_np):
-        # OpenAI Whisper uses fp16 if CUDA is available and fp16 is True.
-        # For CPU, it uses float32 (fp16=False).
+        import time
+        start_time = time.time()
         fp16_enabled = (self.device == "cuda")
         result = self.model.transcribe(audio_np, fp16=fp16_enabled)
+        inference_time = time.time() - start_time
+        print(f"OpenAI Whisper inference time: {inference_time:.2f} seconds")
         return result['text'].strip()
 
 class FasterWhisperTranscriber(AbstractTranscriber):
@@ -127,10 +130,34 @@ class FasterWhisperTranscriber(AbstractTranscriber):
         else:
             compute_type = "int8" # Default fallback
 
-        self.model = WhisperModel(self.model_name, device=self.device, compute_type=compute_type)
+        self.model = WhisperModel(
+            self.model_name, 
+            device=self.device, 
+            compute_type=compute_type
+        )
+        print(f"Faster-Whisper model '{self.model_name}' loaded on {self.device} with compute type '{compute_type}'.")
+        print(f"  Quantization: {'INT8' if 'int8' in compute_type else 'FP16' if 'float16' in compute_type else 'None'}")
+        # Approximate model size based on common Whisper models
+        model_sizes = {
+            "tiny.en": "75 MB", "tiny": "75 MB",
+            "base.en": "140 MB", "base": "140 MB",
+            "small.en": "244 MB", "small": "244 MB",
+            "medium.en": "769 MB", "medium": "769 MB",
+            "large-v1": "1.55 GB", "large-v2": "1.55 GB", "large-v3": "1.55 GB", "large": "1.55 GB",
+            "distil-large-v3": "769 MB" # Distil-large-v3 is roughly equivalent to medium size
+        }
+        print(f"  Approximate model size: {model_sizes.get(self.model_name, 'Unknown')}")
+
 
     def _transcribe_audio(self, audio_np):
-        # The device and compute_type are already configured in the WhisperModel instance
-        segments, _ = self.model.transcribe(audio_np, vad_filter=True)
+        import time
+        start_time = time.time()
+        segments, _ = self.model.transcribe(
+            audio_np,
+            vad_filter=self.vad_filter,
+            vad_parameters=self.vad_parameters
+        )
+        inference_time = time.time() - start_time
+        print(f"Faster-Whisper inference time: {inference_time:.2f} seconds")
         # Concatenate segments to form the full text
         return " ".join([segment.text for segment in segments]).strip()

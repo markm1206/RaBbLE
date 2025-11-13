@@ -54,6 +54,8 @@ def main():
     TRANSCRIBER_DEVICE = transcription_config.get('device', 'cpu')
     TRANSCRIPTION_INTERVAL_SECONDS = transcription_config.get('interval_seconds', 0.5)
     OVERLAP_SECONDS = transcription_config.get('overlap_seconds', 0.1)
+    VAD_FILTER = transcription_config.get('vad_filter', False)
+    VAD_PARAMETERS = transcription_config.get('vad_parameters', {})
     
     # Get emotions from config
     EMOTIONS = list(emotion_config_data.keys())
@@ -81,11 +83,14 @@ def main():
                                                model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
                                                interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
                                                overlap_seconds=OVERLAP_SECONDS)
+        transcriber.vad_filter = VAD_FILTER
+        transcriber.vad_parameters = VAD_PARAMETERS
     else: # Default to openai
         transcriber = OpenAIWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, 
                                               model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
                                               interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
                                               overlap_seconds=OVERLAP_SECONDS)
+        # OpenAI Whisper does not have built-in VAD like Faster-Whisper, so these are not used.
         
     audio_handler.start()
     transcriber.start()
