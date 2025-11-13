@@ -38,7 +38,7 @@ audio_config:
   chunk_size: 2048                      # PyAudio chunk size (1024 * 2)
   sample_rate: 16000                    # Sample rate in Hz
   channels: 1                           # Mono
-  gain_factor: 1.5                      # Audio amplification for transcription
+  gain_factor: 3.0                      # Audio amplification for transcription
 
 # --- Waveform Base Parameters ---
 waveform_config:

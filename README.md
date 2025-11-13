@@ -1,12 +1,10 @@
 # RaBbLE -- ReUsable Animated Babbling Language Engine
 
-# RaBbLE -- ReUsable Animated Babbling Language Engine
-
 ## Overview
 
-This is a modular, lightweight animated face frontend designed as the visual interface for **RABBLE**, a voice-enabled AI assistant agent optimized for edge system deployment. The face serves as an intuitive, expressive way for RABBLE to communicate through animated visual feedback, complementing voice interactions with emotional expressions and real-time audio visualization. It now includes a pluggable speech-to-text transcription engine.
+This is a modular, lightweight animated face frontend designed as the visual interface for **RABBLE**, a voice-enabled AI assistant agent optimized for edge system deployment. The face serves as an intuitive, expressive way for RABBLE to communicate through animated visual feedback, complementing voice interactions with emotional expressions and real-time audio visualization. It now includes a pluggable speech-to-text transcription engine and a dynamic, real-time word display system.
 
-![RABBLE Animated Face Demo](RabbleAnimationV0.1.0.gif)
+![RABBLE Animated Face Demo](RabbleAnimationV0.2.0.gif)
 
 ## Features
 
@@ -19,13 +17,14 @@ This is a modular, lightweight animated face frontend designed as the visual int
     -   **Configurable Transcription Interval**: Adjust how often transcription occurs for optimal latency.
     -   **Overlapping Audio Buffers**: Prevents missed speech at chunk boundaries for improved accuracy.
     -   **Transcription Logging**: All transcribed text is saved to timestamped log files in the `logs/` directory.
+- **Dynamic Word Display**: Transcribed words are displayed in real-time with smooth scrolling animations, managed by the `WordDisplayManager`.
 - **Smooth Blinking Animations**: Natural eye blinking with emotion-dependent blink rates.
 - **Edge-Optimized**: Lightweight design suitable for deployment on resource-constrained edge devices.
 - **Pygame-Based**: Cross-platform rendering using Pygame for broad compatibility.
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.13+
 - pygame
 - pyaudio
 - numpy
@@ -49,12 +48,6 @@ Run the application:
 python main.py
 ```
 
-### Configuration
-
--   **Transcription Backend**: In `config/app.rabl`, set `transcription_config.backend` to `"openai"` or `"faster-whisper"`.
--   **Emotion Definitions**: Modify `config/emotions.rabl` to customize existing emotions or add new ones.
--   **Display & Audio Settings**: Configure `config/app.rabl` for display, audio, and transcription parameters.
-
 ### Keyboard Controls
 
 -   **M**: Cycle through emotions (defined in `emotions.rabl`).
@@ -64,265 +57,137 @@ python main.py
 
 For detailed information about the code architecture, components, and how to extend the system, see [CODEREVIEW.md](CODEREVIEW.md).
 
+```
+Animated_Face_FrontEnd/
+├── main.py                    # Entry point, orchestration, GUI
+├── rabl_parser.py             # RABL configuration parser
+├── audio_handler.py           # Threaded audio input and amplification
+├── transcriber.py             # Model-agnostic speech-to-text transcriber
+├── word_display_manager.py    # Manages real-time display of transcribed words
+├── face.py                    # Face component (dynamic emotion manager)
+├── eye.py                     # Eye component (blinking, rendering)
+├── mouth.py                   # Mouth component (audio visualization)
+├── config/
+│   ├── app.rabl               # Main application configuration
+│   ├── emotions.rabl          # Emotion-specific configurations
+│   └── transcription.rabl     # Transcription and word display settings
+├── requirements.txt           # Python dependencies
+├── README.md                  # This file
+└── CODEREVIEW.md              # Developer guide
+└── logs/                      # Directory for transcription log files
+```
+
 ## Architecture
 
 The system follows a modular, hierarchical design:
 
 ```
-main.py (Orchestration, GUI, Emotion Loading)
-    ├── rabl_parser.py (Parses .rabl emotion config)
+main.py (Orchestration, GUI)
+    ├── rabl_parser.py (Parses all .rabl config files)
     ├── audio_handler.py (Threaded Audio Input, Amplification)
-    └── transcriber.py (Abstract Transcriber, OpenAI/FasterWhisper Implementations, Threaded Transcription, Logging)
-        ↓
+    └── transcriber.py (Threaded Transcription, Logging)
+        ↓ (sends words to)
+    word_display_manager.py (Manages word display)
+        ↓ (drawn by main.py)
     Face (Emotion Manager, dynamically configured)
         ├── Eye (Left & Right - Blinking & Rendering)
-        └── Mouth (Audio Visualization, dynamically configured, clamped amplitude)
+        └── Mouth (Audio Visualization, dynamically configured)
 ```
 
-## Configuration
+## The RABL Configuration System
 
-All configuration is managed through files in the `config/` directory, organized into application settings and emotion-specific configurations:
+**RABL** (Reusable Animated Babbling Language Engine) configuration is managed through a set of `.rabl` files located in the `config/` directory. The RABL markup language is based on YAML, making it easy to read and modify. This system externalizes all major parameters, allowing for extensive customization without code changes.
 
 ### Configuration Structure
 
+The configuration is split into three main files, which are all loaded and parsed by `rabl_parser.py`:
+
 ```
 config/
-├── app.rabl        # Main application configuration (display, audio, positioning, waveform)
-└── emotions.rabl   # Emotion-specific configurations (cycle_rate, frequencies, expressions)
+├── app.rabl             # Main application settings (display, audio, face positioning)
+├── emotions.rabl        # Emotion-specific animation parameters
+└── transcription.rabl   # Transcription model and word display settings
 ```
 
-### app.rabl - Main Application Configuration
+### `app.rabl` - Main Application Configuration
 
-#### Display Configuration
-- **width**: Screen resolution width (default: 800)
-- **height**: Screen resolution height (default: 600)
-- **background_color**: RGB tuple for background (default: `[0, 0, 0]` - black)
-- **text_color**: RGB tuple for transcribed text (default: `[255, 255, 255]` - white)
+This file contains global settings for the application window, colors, and the physical layout of the face components.
 
-#### Color Scheme
-- **eye_color**: RGB tuple for eyes and eyelids (default: `[150, 75, 150]` - magenta)
-- **waveform_color**: RGB tuple for mouth/waveform visualization (default: same as eye_color)
+- **`display_config`**: Screen resolution and colors.
+- **`colors`**: Defines the color palette for the eyes and mouth.
+- **`face_config`**: Controls the size and position of the eyes and mouth.
+- **`audio_config`**: Settings for audio capture, such as sample rate and gain.
+- **`waveform_config`**: Base parameters for the mouth's waveform animations.
 
-#### Face Component Positioning
-- **eye.radius**: Eye size in pixels (default: 30)
-- **eye.left_x_offset**: Left eye horizontal offset from face center (default: -60)
-- **eye.right_x_offset**: Right eye horizontal offset from face center (default: 60)
-- **eye.y_offset**: Eye vertical offset from face center (default: -40)
-- **eye.left_eyelid_position**: Starting eyelid position for left eye (default: "bottom")
-- **eye.right_eyelid_position**: Starting eyelid position for right eye (default: "top")
-- **mouth.y_offset**: Mouth vertical offset from face center (default: 80)
-- **mouth.width**: Width of mouth animation (default: 300)
-- **mouth.max_amplitude**: Maximum waveform amplitude clamp (default: 90)
+### `emotions.rabl` - Emotion-Specific Configuration
 
-#### Audio Configuration
-- **chunk_size**: PyAudio chunk size in samples (default: 2048)
-- **sample_rate**: Recording sample rate in Hz (default: 16000)
-- **channels**: Number of audio channels (default: 1 - mono)
-- **gain_factor**: Audio amplification multiplier for transcription (default: 1.5)
+This file defines the unique animation behaviors for each emotional state.
 
-#### Transcription Configuration
-- **interval_seconds**: How often to process audio chunks (default: 0.5 seconds)
-- **overlap_seconds**: Overlap between transcription chunks (default: 0.1 seconds)
-- **backend**: Transcriber backend - "openai" or "faster-whisper" (default: "faster-whisper")
-- **model_name**: Whisper model name (default: "tiny.en")
+- Each top-level key is an emotion name (e.g., `IDLE`, `HAPPY`).
+- **`blink_interval`**: Time in milliseconds between blinks.
+- **`mouth_shape`**: The animation style for the mouth (`sine`, `parabolic`, `saw`).
+- **`audio_amplitude_multiplier`**: How strongly the audio volume affects the mouth animation (0-100).
+- **`cycle_rate`**: The speed of the animation cycle (1.0 is normal).
+- **`shape_params`**: Parameters specific to the chosen `mouth_shape`, such as frequency and direction.
 
-#### Waveform Base Parameters
-- **base_frequency**: Base frequency for animations (default: 1.0)
-- **breathing_amplitude**: Amplitude of breathing effect (0-1, default: 0.15)
-- **line_width**: Thickness of waveform line in pixels (default: 5)
+### `transcription.rabl` - Transcription and Word Display
 
-### emotions.rabl - Emotion-Specific Configuration
+This file configures the speech-to-text engine and the appearance of the transcribed text.
 
-Each emotion has its own configuration with animation parameters. Frequencies are specified **in terms of π** (e.g., `2` means 2π radians).
-
-#### Emotion Parameters
-- **blink_interval**: Blink frequency in milliseconds
-- **mouth_shape**: Animation shape - "sine", "parabolic", "saw", or "default"
-- **y_offset**: Vertical offset for mouth shape
-- **audio_amplitude_multiplier**: Controls audio waveform amplitude (0-100 scale)
-  - 0 = straight line (no audio effect)
-  - 50 = half audio modulation
-  - 100 = full audio range
-- **cycle_rate**: Animation speed multiplier (1.0 = normal, 2.0 = double speed, 0.5 = half speed)
-- **shape_params**: Shape-specific parameters:
-  - **sine_frequency**: Frequency in terms of π for sine waves
-  - **saw_frequency**: Frequency in terms of π for sawtooth waves
-  - **parabolic_sine_frequency**: Frequency in terms of π for parabolic waves
-  - **curve_direction**: For parabolic shapes (1.0 = smile/convex, -1.0 = frown/concave)
-
-#### Available Emotions (Default)
-- **IDLE**: Subtle sine wave with normal speed (cycle_rate: 1.0)
-- **NEUTRAL**: Sawtooth wave with slightly faster speed (cycle_rate: 1.5)
-- **HAPPY**: Parabolic smile with steady motion (cycle_rate: 0.8)
-- **SCARED**: Parabolic open-mouth with nervous rapid motion (cycle_rate: 2.0)
-- **SAD**: Parabolic frown with slow, melancholic motion (cycle_rate: 0.6)
-- **ANGRY**: Sawtooth aggressive animation with very fast motion (cycle_rate: 2.5)
-
-#### Example Emotion Configuration
-
-```yaml
-emotion_config:
-  IDLE:
-    blink_interval: 1000
-    mouth_shape: sine
-    y_offset: 0
-    audio_amplitude_multiplier: 60
-    cycle_rate: 1.0
-    shape_params:
-      sine_frequency: 2                 # 2π radians = one full cycle
-```
-
-## Recent Updates
-
-### Configuration System Restructuring (Phase 5)
-- **Modular Config Structure**: Reorganized into `config/app.rabl` and `config/emotions.rabl`
-- **Per-Emotion Cycle Rate**: Each emotion now has its own `cycle_rate` for independent animation speed control
-- **π-Based Frequency Specification**: Frequencies now specified in terms of π (e.g., 2 = 2π radians) for improved clarity
-- **Clearer Parameter Naming**: 
-  - `amplitude_multiplier` → `audio_amplitude_multiplier` (makes purpose clear)
-  - `curve_factor_intensity` → `curve_direction` (more intuitive)
-- **Removed Legacy Parameters**: Cleaned up unused configuration parameters for simplicity
-- **Enhanced RABL Parser**: Now handles file references, loading emotions from separate file automatically
-
-### Waveform System Refinement (Phase 4)
-- **Unified Sinusoidal Effects**: All waveforms (sine, parabolic, sawtooth) now exhibit consistent amplitude and frequency effects
-- **Consistent Amplitudes**: All shapes use ±30 pixels sinusoidal motion for predictable behavior
-- **Simplified Configuration**: Removed unused parameters (saw_period_divisor, sine_amplitude, parabolic_sine_amplitude, etc.)
-
-### Configuration System Refactoring (Phase 1-3)
-- **Centralized Configuration**: All system parameters managed through `.rabl` config files
-- **Unified Waveform System**: Consistent Y-center positioning across all shapes
-- **Base Frequency Normalization**: 1.0 = one full cycle across screen width
-- **Robust Path Resolution**: Configuration loads correctly from any working directory
+- **`backend`**: The transcription model to use (`"openai-whisper"` or `"faster-whisper"`).
+- **`model_name`**: The specific Whisper model size (e.g., `"tiny.en"`, `"base.en"`).
+- **`device`**: The hardware to run the model on (`"cpu"` or `"cuda"`).
+- **`interval_seconds`**: How often the audio buffer is processed for transcription.
+- **`overlap_seconds`**: How much audio to overlap between chunks to prevent missed words.
+- **`vad_filter`**: (For `faster-whisper`) Enables Voice Activity Detection to filter out silence.
+- **`cleanup_strategy`**: Post-processing strategy for transcribed text (e.g., `"simple_deduplication"`).
+- **`scroll_speed`**: The speed at which transcribed words scroll across the screen (pixels per second).
+- **`word_display_interval_ms`**: The time in milliseconds between displaying each new word.
 
 ## Integration with RABBLE
 
 This frontend is designed to work as a standalone UI component that can be integrated into larger RABBLE agent systems. It communicates through:
 -   **Emotion State**: Set via `Face.set_emotion(emotion_name)`.
 -   **Audio Input**: Receives amplified audio stream through `AudioHandler` for real-time visualization and transcription.
--   **Transcribed Text**: Provides real-time speech-to-text output.
+-   **Transcribed Text**: The `Transcriber` now directly manages the display of text via the `WordDisplayManager`. To integrate with an agent, you would modify the `Transcriber` to also send the text to your agent's logic.
 
 ### Using in Your Project
 ```python
-from face import Face
-from audio_handler import AudioHandler
-from transcriber import FasterWhisperTranscriber
-import pygame
+# In main.py, you would modify the Transcriber's run loop
+# to pass the transcribed text to your agent.
 
-# Initialize components
-face = Face(400, 300, eye_color, waveform_color, background_color, 
-           emotion_config, face_config, waveform_config)
+# Example modification in transcriber.py:
+class AbstractTranscriber(ABC, threading.Thread):
+    def __init__(self, ..., agent_text_queue=None):
+        ...
+        self.agent_text_queue = agent_text_queue
 
-# Control emotions
-face.set_emotion("HAPPY")
-
-# Listen for transcribed text
-text = text_queue.get_nowait()  # Get latest transcription
-```
-
-## Customization
-
-### Adding a New Emotion
-
-1. Open `config/emotions.rabl` and add a new emotion entry:
-```yaml
-emotion_config:
-  CONFUSED:
-    blink_interval: 1500
-    mouth_shape: sine
-    y_offset: 0
-    audio_amplitude_multiplier: 55
-    cycle_rate: 1.2
-    shape_params:
-      sine_frequency: 1.5              # In terms of π
-```
-
-2. Run the application - the new emotion will be automatically available via the M key
-
-### Modifying Animation Speed Per Emotion
-
-Adjust `cycle_rate` to control animation speed independently for each emotion:
-
-```yaml
-emotion_config:
-  EXCITED:
-    cycle_rate: 3.0                    # Very fast animation
-  SLEEPY:
-    cycle_rate: 0.3                    # Very slow animation
-```
-
-### Modifying Waveform Frequency
-
-Frequencies are specified in terms of π in `config/emotions.rabl`:
-
-```yaml
-shape_params:
-  sine_frequency: 1.0                  # 1π radians
-  sine_frequency: 2.0                  # 2π radians (one full cycle)
-  sine_frequency: 0.5                  # 0.5π radians (half cycle)
-```
-
-### Modifying Base Waveform Parameters
-
-Edit `config/app.rabl` waveform_config section:
-```yaml
-waveform_config:
-  base_frequency: 1.0                  # Animation base frequency
-  breathing_amplitude: 0.25            # More pronounced breathing effect
-  line_width: 6                        # Thicker waveform line
-```
-
-### Adjusting Audio Settings
-
-```yaml
-audio_config:
-  gain_factor: 2.0                     # Boost audio for better transcription
-  sample_rate: 44100                   # Higher sample rate for quality
-  chunk_size: 4096                     # Larger chunks for better quality
-```
-
-### Customizing Colors
-
-```yaml
-colors:
-  eye_color: [255, 100, 50]            # Orange eyes
-  waveform_color: [0, 255, 255]        # Cyan mouth
+    def run(self):
+        ...
+        if text:
+            cleaned_text = self._apply_cleanup_strategy(text)
+            if cleaned_text:
+                self.word_display_manager.add_transcribed_text(cleaned_text)
+                if self.agent_text_queue:
+                    self.agent_text_queue.put(cleaned_text) # Send to agent
+                ...
 ```
 
 ## Troubleshooting
 
 ### Configuration Loading Issues
-- Ensure `config/app.rabl` and `config/emotions.rabl` exist in the `config/` directory
-- Check for YAML syntax errors (proper indentation required)
-- Run with debug output to see where configuration is being loaded from
-- Verify the `emotions_file` reference in `app.rabl` points to the correct path
+- Ensure `config/app.rabl`, `config/emotions.rabl`, and `config/transcription.rabl` exist.
+- Check for YAML syntax errors (proper indentation is crucial).
+- The `rabl_parser.py` now automatically resolves file paths, so it should work regardless of the execution directory.
 
 ### No Audio Input
-- Verify microphone is connected and permissions granted
-- Check `audio_config.sample_rate` matches your system
-- Try adjusting `audio_config.chunk_size`
+- Verify your microphone is connected and has the correct permissions.
+- Check that `audio_config.sample_rate` in `app.rabl` matches your system's capabilities.
 
 ### Transcription Not Working
-- Ensure transcription backend is installed: `pip install faster-whisper` or `pip install openai-whisper`
-- Check `transcription_config.backend` is set correctly in `config/app.rabl`
-- Verify internet connection (for OpenAI backend)
-- Check `logs/` directory for transcription errors
-
-### Animation Not Responsive Enough
-- Increase `audio_amplitude_multiplier` in the emotion (0-100 scale)
-- Reduce `cycle_rate` to slow down waveform oscillation
-- Increase `waveform_config.base_frequency`
-
-### Animation Too Jerky or Inconsistent
-- Try adjusting the frequency in terms of π (higher = more oscillations per screen width)
-- Increase `waveform_config.line_width` for smoother visual appearance
-- Ensure `cycle_rate` is between 0.5 and 3.0 for smooth motion
-
-### Poor Animation Performance
-- Reduce display resolution in `display_config`
-- Decrease `waveform_config.line_width`
-- Close other applications to free up resources
-- Try CPU-optimized transcription backend (faster-whisper)
+- Ensure the selected backend is installed: `pip install faster-whisper` or `pip install openai-whisper`.
+- Check that `transcription_config.backend` is set correctly in `transcription.rabl`.
+- Check the `logs/` directory for any transcription-related error messages.
 
 ## License
 

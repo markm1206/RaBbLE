@@ -3,10 +3,14 @@ import sys
 import queue
 import numpy as np
 import threading
+from collections import deque # Needed for WordDisplayManager
+import time # Needed for delta_time calculation
+import signal # For graceful shutdown
 from face import Face
 from audio_handler import AudioHandler
 from transcriber import OpenAIWhisperTranscriber, FasterWhisperTranscriber, print_supported_gpu_devices
 from rabl_parser import parse_rabl
+from word_display_manager import WordDisplayManager # Import the new class
 
 def main():
     """Main animation loop."""
@@ -56,6 +60,13 @@ def main():
     OVERLAP_SECONDS = transcription_config.get('overlap_seconds', 0.1)
     VAD_FILTER = transcription_config.get('vad_filter', False)
     VAD_PARAMETERS = transcription_config.get('vad_parameters', {})
+    TRANSCRIPTION_HISTORY_SIZE = transcription_config.get('transcription_history_size', 50)
+    CLEANUP_STRATEGY = transcription_config.get('cleanup_strategy', 'none')
+
+    # Word Display settings from RABL
+    SCROLL_SPEED = transcription_config.get('scroll_speed', 70)
+    WORD_DISPLAY_INTERVAL_MS = transcription_config.get('word_display_interval_ms', 150)
+    DISPLAY_TEXT_Y_OFFSET = transcription_config.get('display_text_y_offset', 50)
     
     # Get emotions from config
     EMOTIONS = list(emotion_config_data.keys())
@@ -69,28 +80,43 @@ def main():
 
     # --- Queues and Events for Thread Communication ---
     animation_queue = queue.Queue(maxsize=2)
-    transcription_queue = queue.Queue()
-    text_queue = queue.Queue()
+    transcription_queue = queue.Queue() # Revert to unbounded queue
+    # text_queue is no longer needed as Transcriber will directly interact with WordDisplayManager
     model_loaded_event = threading.Event()
 
+    # Initialize WordDisplayManager
+    word_display_manager = WordDisplayManager(
+        font=font,
+        text_color=TEXT_COLOR,
+        screen_width=WIDTH,
+        screen_height=HEIGHT,
+        scroll_speed=SCROLL_SPEED,
+        word_display_interval_ms=WORD_DISPLAY_INTERVAL_MS,
+        display_text_y_offset=DISPLAY_TEXT_Y_OFFSET
+    )
+
     # --- Start Audio and Transcription Threads ---
-    audio_handler = AudioHandler(animation_queue, transcription_queue, 
+    audio_handler = AudioHandler(animation_queue, transcription_queue, model_loaded_event,
                                 chunk_size=audio_chunk_size, rate=audio_rate, 
                                 channels=audio_channels, gain_factor=audio_gain_factor)
     
     if TRANSCRIBER_BACKEND == "faster-whisper":
-        transcriber = FasterWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, 
+        transcriber = FasterWhisperTranscriber(transcription_queue, word_display_manager, model_loaded_event, 
                                                model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
                                                interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
-                                               overlap_seconds=OVERLAP_SECONDS)
+                                               overlap_seconds=OVERLAP_SECONDS,
+                                               transcription_history_size=TRANSCRIPTION_HISTORY_SIZE,
+                                               cleanup_strategy=CLEANUP_STRATEGY)
         transcriber.vad_filter = VAD_FILTER
         transcriber.vad_parameters = VAD_PARAMETERS
     else: # Default to openai
-        transcriber = OpenAIWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, 
+        transcriber = OpenAIWhisperTranscriber(transcription_queue, word_display_manager, model_loaded_event, 
                                               model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
                                               interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
-                                              overlap_seconds=OVERLAP_SECONDS)
-        # OpenAI Whisper does not have built-in VAD like Faster-Whisper, so these are not used.
+                                              overlap_seconds=OVERLAP_SECONDS,
+                                              transcription_history_size=TRANSCRIPTION_HISTORY_SIZE,
+                                              cleanup_strategy=CLEANUP_STRATEGY)
+        # OpenAI Whisper does not have built-in VAD like Faster-Whisper, so VAD parameters are not used directly.
         
     audio_handler.start()
     transcriber.start()
@@ -103,10 +129,22 @@ def main():
     face.set_emotion(EMOTIONS[current_emotion_index]) # Set initial emotion from loaded config
 
     running = True
-    last_text = "Initializing Transcription..."
-    model_ready = False
+    
+    # Define signal handler for graceful shutdown
+    def signal_handler(sig, frame):
+        nonlocal running
+        print("SIGINT received, gracefully shutting down...")
+        running = False
+    
+    signal.signal(signal.SIGINT, signal_handler)
+
+    last_frame_time = time.time() # For delta_time calculation
     normalized_data = np.zeros(1024 * 2) # Initialize with silent data
     while running:
+        current_time = time.time()
+        delta_time = (current_time - last_frame_time) * 1000 # in milliseconds
+        last_frame_time = current_time
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -122,8 +160,6 @@ def main():
 
         screen.fill(BACKGROUND_COLOR)
 
-        current_time = pygame.time.get_ticks()
-
         try:
             # Get the latest audio data for animation without blocking
             normalized_data = animation_queue.get_nowait()
@@ -131,24 +167,11 @@ def main():
             # If the queue is empty, use the last available data to keep animating
             pass
         
-        face.draw(screen, normalized_data, current_time)
+        face.draw(screen, normalized_data, pygame.time.get_ticks()) # Pass pygame.time.get_ticks() for waveform animation
 
-        # --- Handle Transcription Text ---
-        if not model_ready and model_loaded_event.is_set():
-            model_ready = True
-            last_text = "" # Clear the initializing message
-
-        if model_ready:
-            try:
-                # Check for new transcribed text
-                last_text = text_queue.get_nowait()
-            except queue.Empty:
-                pass # No new text
-
-        # Render the transcribed text
-        text_surface = font.render(last_text, True, TEXT_COLOR)
-        text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 50))
-        screen.blit(text_surface, text_rect)
+        # --- Handle Transcription Text (now handled directly by Transcriber) ---
+        word_display_manager.update(delta_time)
+        word_display_manager.draw(screen)
 
         pygame.display.flip()
 
