@@ -6,21 +6,35 @@ import os
 from datetime import datetime
 from abc import ABC, abstractmethod
 
-# --- Transcriber Configuration Constants ---
-TRANSCRIPTION_INTERVAL_SECONDS = 0.5 # How often to attempt transcription
-OVERLAP_SECONDS = 0.1 # How much audio to overlap between transcription chunks
+def print_supported_gpu_devices():
+    """
+    Checks for CUDA availability and prints the detected GPU devices.
+    """
+    if torch.cuda.is_available():
+        print(f"CUDA is available. Number of GPUs: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
+    else:
+        print("CUDA is not available. Running on CPU.")
 
 class AbstractTranscriber(ABC, threading.Thread):
     """
     Abstract base class for transcriber implementations.
     """
-    def __init__(self, transcription_queue, text_queue, model_loaded_event, model_name="tiny.en", sample_rate=44100):
+    def __init__(self, transcription_queue, text_queue, model_loaded_event, 
+                 model_name="tiny.en", sample_rate=44100, device="cpu",
+                 interval_seconds=0.5, overlap_seconds=0.1):
         super().__init__()
         self.transcription_queue = transcription_queue
         self.text_queue = text_queue
         self.model_loaded_event = model_loaded_event
         self.model_name = model_name
         self.sample_rate = sample_rate
+        self.device = device
+        # compute_type will be determined dynamically within _load_model for FasterWhisper
+        # and implicitly handled by fp16 for OpenAIWhisper
+        self.interval_seconds = interval_seconds
+        self.overlap_seconds = overlap_seconds
         self._running = False
         self.model = None
         self.audio_buffer = bytearray()
@@ -43,13 +57,13 @@ class AbstractTranscriber(ABC, threading.Thread):
         """
         The main loop of the transcriber thread.
         """
-        # Calculate buffer sizes in bytes
-        interval_buffer_size = int(self.sample_rate * TRANSCRIPTION_INTERVAL_SECONDS) * 2 # 2 bytes per int16 sample
-        overlap_buffer_size = int(self.sample_rate * OVERLAP_SECONDS) * 2 # 2 bytes per int16 sample
+        # Calculate buffer sizes in bytes using instance attributes from config
+        interval_buffer_size = int(self.sample_rate * self.interval_seconds) * 2 # 2 bytes per int16 sample
+        overlap_buffer_size = int(self.sample_rate * self.overlap_seconds) * 2 # 2 bytes per int16 sample
 
         self._load_model()
         self.model_loaded_event.set()
-        print("Whisper model loaded.")
+        print(f"Whisper model loaded on {self.device}.")
 
         self._running = True
         while self._running:
@@ -90,10 +104,13 @@ class OpenAIWhisperTranscriber(AbstractTranscriber):
     """
     def _load_model(self):
         import whisper
-        self.model = whisper.load_model(self.model_name)
+        self.model = whisper.load_model(self.model_name, device=self.device)
 
     def _transcribe_audio(self, audio_np):
-        result = self.model.transcribe(audio_np, fp16=torch.cuda.is_available())
+        # OpenAI Whisper uses fp16 if CUDA is available and fp16 is True.
+        # For CPU, it uses float32 (fp16=False).
+        fp16_enabled = (self.device == "cuda")
+        result = self.model.transcribe(audio_np, fp16=fp16_enabled)
         return result['text'].strip()
 
 class FasterWhisperTranscriber(AbstractTranscriber):
@@ -102,10 +119,18 @@ class FasterWhisperTranscriber(AbstractTranscriber):
     """
     def _load_model(self):
         from faster_whisper import WhisperModel
-        # Use "int8" for faster CPU performance
-        self.model = WhisperModel(self.model_name, device="cpu", compute_type="int8")
+        # Determine compute_type dynamically based on device
+        if self.device == "cpu":
+            compute_type = "int8"
+        elif self.device == "cuda":
+            compute_type = "float16"
+        else:
+            compute_type = "int8" # Default fallback
+
+        self.model = WhisperModel(self.model_name, device=self.device, compute_type=compute_type)
 
     def _transcribe_audio(self, audio_np):
-        segments, _ = self.model.transcribe(audio_np)
+        # The device and compute_type are already configured in the WhisperModel instance
+        segments, _ = self.model.transcribe(audio_np, vad_filter=True)
         # Concatenate segments to form the full text
         return " ".join([segment.text for segment in segments]).strip()

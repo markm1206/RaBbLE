@@ -50,6 +50,23 @@ def parse_rabl(file_path):
                 
                 # Remove the reference key from the main data
                 del data['emotions_file']
+            
+            # Handle transcription_file reference
+            if 'transcription_file' in data:
+                transcription_file_path = os.path.join(config_dir, data['transcription_file'])
+                transcription_file_path = os.path.normpath(transcription_file_path)
+                
+                print(f"Loading referenced transcription file from: {transcription_file_path}")
+                
+                with open(transcription_file_path, 'r') as f:
+                    transcription_data = yaml.safe_load(f)
+                
+                # Merge transcription_config from the separate file
+                if transcription_data and 'transcription_config' in transcription_data:
+                    data['transcription_config'] = transcription_data['transcription_config']
+                
+                # Remove the reference key from the main data
+                del data['transcription_file']
         
         print(f"Successfully loaded RABL configuration.")
         return data

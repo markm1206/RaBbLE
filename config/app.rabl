@@ -40,13 +40,6 @@ audio_config:
   channels: 1                           # Mono
   gain_factor: 1.5                      # Audio amplification for transcription
 
-# --- Transcription Configuration ---
-transcription_config:
-  interval_seconds: 0.5                 # How often to process transcription
-  overlap_seconds: 0.1                  # Overlap between chunks
-  backend: "faster-whisper"             # Options: "openai", "faster-whisper"
-  model_name: "tiny.en"                 # Whisper model name
-
 # --- Waveform Base Parameters ---
 waveform_config:
   base_frequency: 1.0                   # Base frequency (sine wave cycles per screen width)
@@ -56,3 +49,4 @@ waveform_config:
 # --- Emotion Configuration File Reference ---
 # Emotions are defined in a separate emotions.rabl file for better organization
 emotions_file: "emotions.rabl"          # Path relative to this config directory
+transcription_file: "transcription.rabl" # Path relative to this config directory

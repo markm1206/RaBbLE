@@ -5,7 +5,7 @@ import numpy as np
 import threading
 from face import Face
 from audio_handler import AudioHandler
-from transcriber import OpenAIWhisperTranscriber, FasterWhisperTranscriber
+from transcriber import OpenAIWhisperTranscriber, FasterWhisperTranscriber, print_supported_gpu_devices
 from rabl_parser import parse_rabl
 
 def main():
@@ -28,9 +28,9 @@ def main():
     colors_config = config_data.get('colors', {})
     face_config = config_data.get('face_config', {})
     audio_config = config_data.get('audio_config', {})
-    transcription_config = config_data.get('transcription_config', {})
     waveform_config = config_data.get('waveform_config', {})
     emotion_config_data = config_data.get('emotion_config', {})
+    transcription_config = config_data.get('transcription_config', {}) # Now loaded from separate file
     
     # Display settings from RABL
     WIDTH = display_config.get('width', 800)
@@ -51,9 +51,15 @@ def main():
     # Transcription settings from RABL
     TRANSCRIBER_BACKEND = transcription_config.get('backend', 'faster-whisper')
     TRANSCRIBER_MODEL = transcription_config.get('model_name', 'tiny.en')
+    TRANSCRIBER_DEVICE = transcription_config.get('device', 'cpu')
+    TRANSCRIPTION_INTERVAL_SECONDS = transcription_config.get('interval_seconds', 0.5)
+    OVERLAP_SECONDS = transcription_config.get('overlap_seconds', 0.1)
     
     # Get emotions from config
     EMOTIONS = list(emotion_config_data.keys())
+
+    # Print supported GPU devices at startup
+    print_supported_gpu_devices()
 
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("RABBLE - Animated Face with Transcription")
@@ -71,9 +77,15 @@ def main():
                                 channels=audio_channels, gain_factor=audio_gain_factor)
     
     if TRANSCRIBER_BACKEND == "faster-whisper":
-        transcriber = FasterWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, model_name=TRANSCRIBER_MODEL)
+        transcriber = FasterWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, 
+                                               model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
+                                               interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
+                                               overlap_seconds=OVERLAP_SECONDS)
     else: # Default to openai
-        transcriber = OpenAIWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, model_name=TRANSCRIBER_MODEL)
+        transcriber = OpenAIWhisperTranscriber(transcription_queue, text_queue, model_loaded_event, 
+                                              model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
+                                              interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
+                                              overlap_seconds=OVERLAP_SECONDS)
         
     audio_handler.start()
     transcriber.start()
