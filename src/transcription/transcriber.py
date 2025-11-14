@@ -24,6 +24,7 @@ class AbstractTranscriber(ABC, threading.Thread):
     Abstract base class for transcriber implementations.
     """
     def __init__(self, transcription_queue, transcribed_text_queue, model_loaded_event, transcriber_ready_event,
+                 llm_agent_input_queue=None, # New parameter for LLM agent input
                  model_name="tiny.en", sample_rate=44100, device="cpu",
                  interval_seconds=0.5, overlap_seconds=0.1,
                  transcription_history_size=50, cleanup_strategy="none"):
@@ -32,6 +33,7 @@ class AbstractTranscriber(ABC, threading.Thread):
         self.transcribed_text_queue = transcribed_text_queue
         self.model_loaded_event = model_loaded_event # For AudioHandler to wait for Transcriber
         self.transcriber_ready_event = transcriber_ready_event # For WordDisplayManager to know when transcriber is ready
+        self.llm_agent_input_queue = llm_agent_input_queue # Store the LLM agent input queue
         self.model_name = model_name
         self.sample_rate = sample_rate
         self.device = device
@@ -41,6 +43,7 @@ class AbstractTranscriber(ABC, threading.Thread):
         self.cleanup_strategy = cleanup_strategy
         self.transcription_history = deque(maxlen=transcription_history_size)
         self._running = False
+        self.paused = False
         self.model = None
         self.audio_buffer = bytearray()
 
@@ -83,6 +86,9 @@ class AbstractTranscriber(ABC, threading.Thread):
 
         self._running = True
         while self._running:
+            if self.paused:
+                threading.Event().wait(0.1) # Sleep when paused
+                continue
             try:
                 # Continuously extend the audio buffer with new data from the queue
                 while not self.transcription_queue.empty():
@@ -110,6 +116,10 @@ class AbstractTranscriber(ABC, threading.Thread):
                             with open(self.log_file_path, "a", encoding="utf-8") as f:
                                 f.write(f"{cleaned_text}\n")
                             self._update_transcription_history(cleaned_text)
+                            
+                            # Send to LLM agent if queue is provided
+                            if self.llm_agent_input_queue:
+                                self.llm_agent_input_queue.put(cleaned_text)
                 else:
                     # If not enough data, wait a bit before checking again
                     threading.Event().wait(0.01) # Small sleep to prevent busy-waiting
@@ -122,6 +132,10 @@ class AbstractTranscriber(ABC, threading.Thread):
 
     def stop(self):
         self._running = False
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+        print(f"Transcription {'paused' if self.paused else 'resumed'}.")
 
     def _update_transcription_history(self, new_text):
         # Add new text to the history, keeping only the most recent part

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a modular, lightweight animated face frontend designed as the visual interface for **RABBLE**, a voice-enabled AI assistant agent optimized for edge system deployment. The face serves as an intuitive, expressive way for RABBLE to communicate through animated visual feedback, complementing voice interactions with emotional expressions and real-time audio visualization. It now includes a pluggable speech-to-text transcription engine and a dynamic, real-time word display system.
+This is a modular, lightweight animated face frontend designed as the visual interface for **RABBLE**, a voice-enabled AI assistant agent optimized for edge system deployment. The face serves as an intuitive, expressive way for RABBLE to communicate through animated visual feedback, complementing voice interactions with emotional expressions and real-time audio visualization. It now includes a pluggable speech-to-text transcription engine, a dynamic, real-time word display system, and an extensible LLM agent integration.
 
 ![RABBLE Animated Face Demo](RabbleAnimationV0.2.0.gif)
 
@@ -17,7 +17,14 @@ This is a modular, lightweight animated face frontend designed as the visual int
     -   **Configurable Transcription Interval**: Adjust how often transcription occurs for optimal latency.
     -   **Overlapping Audio Buffers**: Prevents missed speech at chunk boundaries for improved accuracy.
     -   **Transcription Logging**: All transcribed text is saved to timestamped log files in the `logs/` directory.
+    -   **Transcription Pause/Unpause**: Toggle transcription processing with a keyboard shortcut.
 - **Dynamic Word Display**: Transcribed words are displayed in real-time with smooth scrolling animations, managed by the `WordDisplayManager`.
+- **Extensible LLM Agent Integration**:
+    -   **AbstractLLMAgent Interface**: Defines a clear contract for integrating various LLM agent implementations.
+    -   **EchoLLMAgent**: A basic agent that echoes input, useful for testing.
+    -   **GoogleADKLLMAgent (Placeholder)**: A placeholder for integrating with Google's Agent Development Kit.
+    -   LLM agent responses are displayed on the screen.
+- **Hideable Text Input Field**: A text input field can be toggled visible/hidden for direct user input to the LLM agent.
 - **Smooth Blinking Animations**: Natural eye blinking with emotion-dependent blink rates.
 - **Edge-Optimized**: Lightweight design suitable for deployment on resource-constrained edge devices.
 - **Pygame-Based**: Cross-platform rendering using Pygame for broad compatibility.
@@ -31,6 +38,8 @@ This is a modular, lightweight animated face frontend designed as the visual int
 - openai-whisper (for OpenAI Whisper backend)
 - faster-whisper (for Faster-Whisper backend)
 - pyyaml (for RABL configuration parsing)
+- langchain (for LLM agent framework, if used)
+- google-adk (for Google Agent Development Kit integration, if used)
 
 ## Installation
 
@@ -43,15 +52,17 @@ pip install -r requirements.txt
 
 ## Usage
 
-Run the application:
+Run the application from the root directory:
 ```bash
-python main.py
+python -m src.main
 ```
 
 ### Keyboard Controls
 
 -   **M**: Cycle through emotions (defined in `emotions.rabl`).
 -   **T**: Toggle eyelid positions (swap which eye has top/bottom eyelid).
+-   **P**: Toggle transcription pause/unpause.
+-   **I**: Toggle visibility of the text input field.
 
 ## Project Structure
 
@@ -59,24 +70,35 @@ For detailed information about the code architecture, components, and how to ext
 
 ```
 Animated_Face_FrontEnd/
-├── main.py                    # Entry point, orchestration, GUI
-├── rabl_parser.py             # RABL configuration parser
-├── audio_handler.py           # Threaded audio input and amplification
-├── transcriber.py             # Model-agnostic speech-to-text transcriber
-├── word_display_manager.py    # Manages real-time display of transcribed words
-├── face.py                    # Face component (dynamic emotion manager)
-├── eye.py                     # Eye component (blinking, rendering)
-├── mouth.py                   # Mouth component (audio visualization)
+├── src/
+│   ├── main.py                # Entry point, orchestration, GUI
+│   ├── __init__.py
+│   ├── animation/
+│   │   ├── face.py            # Face component (dynamic emotion manager)
+│   │   ├── eye.py             # Eye component (blinking, rendering)
+│   │   └── mouth.py           # Mouth component (audio visualization)
+│   ├── audio/
+│   │   └── audio_handler.py   # Threaded audio input and amplification
+│   ├── config/
+│   │   ├── config_loader.py   # Loads all .rabl files
+│   │   └── rabl_parser.py     # RABL configuration parser
+│   ├── transcription/
+│   │   └── transcriber.py     # Model-agnostic speech-to-text transcriber
+│   ├── ui/
+│   │   └── word_display_manager.py # Manages real-time display of transcribed words and text input
+│   └── agent/
+│       ├── llm_agent.py           # Abstract LLM Agent interface and EchoLLMAgent
+│       └── google_adk_llm_agent.py # Google ADK LLM Agent placeholder
 ├── config/
 │   ├── audio.rabl             # Audio capture and processing configuration
 │   ├── display.rabl           # Display settings (resolution, colors)
 │   ├── emotions.rabl          # Emotion-specific animation parameters
 │   ├── face_layout.rabl       # Face component positioning and sizing
 │   └── transcription.rabl     # Transcription model and word display settings
+├── logs/                      # Directory for transcription log files
 ├── requirements.txt           # Python dependencies
 ├── README.md                  # This file
 └── CODEREVIEW.md              # Developer guide
-└── logs/                      # Directory for transcription log files
 ```
 
 ## Architecture
@@ -84,16 +106,18 @@ Animated_Face_FrontEnd/
 The system follows a modular, hierarchical design:
 
 ```
-main.py (Orchestration, GUI)
-    ├── rabl_parser.py (Parses all .rabl config files)
-    ├── audio_handler.py (Threaded Audio Input, Amplification)
-    └── transcriber.py (Threaded Transcription, Logging)
-        ↓ (sends words to)
-    word_display_manager.py (Manages word display)
+src/main.py (Application Orchestration & GUI)
+    ├── src/config/config_loader.py (Loads all .rabl config files)
+    ├── src/audio/audio_handler.py (Threaded Audio Input, Amplification)
+    ├── src/transcription/transcriber.py (Threaded Transcription, Logging)
+    │   ↓ (sends words to)
+    ├── src/agent/llm_agent.py (AbstractLLMAgent interface, concrete implementations)
+    │   ↓ (sends responses to)
+    └── src/ui/word_display_manager.py (Manages word display and text input)
         ↓ (drawn by main.py)
-    Face (Emotion Manager, dynamically configured)
-        ├── Eye (Left & Right - Blinking & Rendering)
-        └── Mouth (Audio Visualization, dynamically configured)
+    src/animation/face.py (Emotion Manager, dynamically configured)
+        ├── src/animation/eye.py (Left & Right - Blinking & Rendering)
+        └── src/animation/mouth.py (Audio Visualization, dynamically configured)
 ```
 
 ## The RABL Configuration System
@@ -163,45 +187,53 @@ This file configures the speech-to-text engine and the appearance of the transcr
 This frontend is designed to work as a standalone UI component that can be integrated into larger RABBLE agent systems. It communicates through:
 -   **Emotion State**: Set via `Face.set_emotion(emotion_name)`.
 -   **Audio Input**: Receives amplified audio stream through `AudioHandler` for real-time visualization and transcription.
--   **Transcribed Text**: The `Transcriber` now directly manages the display of text via the `WordDisplayManager`. To integrate with an agent, you would modify the `Transcriber` to also send the text to your agent's logic.
+-   **Transcribed Text**: The `Transcriber` sends transcribed text to the `WordDisplayManager` for display and to the active `AbstractLLMAgent` for processing.
+-   **LLM Agent Responses**: The active `AbstractLLMAgent` sends its responses back to the `WordDisplayManager` for display.
 
 ### Using in Your Project
 ```python
-# In main.py, you would modify the Transcriber's run loop
-# to pass the transcribed text to your agent.
+# In main.py, you would select and instantiate your desired LLM agent:
+from src.agent.llm_agent import EchoLLMAgent
+from src.agent.google_adk_llm_agent import GoogleADKLLMAgent
 
-# Example modification in transcriber.py:
-class AbstractTranscriber(ABC, threading.Thread):
-    def __init__(self, ..., agent_text_queue=None):
-        ...
-        self.agent_text_queue = agent_text_queue
+# ... inside main() ...
+llm_agent_input_queue = queue.Queue()
+llm_agent_output_queue = queue.Queue()
 
-    def run(self):
-        ...
-        if text:
-            cleaned_text = self._apply_cleanup_strategy(text)
-            if cleaned_text:
-                self.word_display_manager.add_transcribed_text(cleaned_text)
-                if self.agent_text_queue:
-                    self.agent_text_queue.put(cleaned_text) # Send to agent
-                ...
+USE_GOOGLE_ADK_AGENT = False # Set to True to use GoogleADKLLMAgent
+
+if USE_GOOGLE_ADK_AGENT:
+    llm_agent = GoogleADKLLMAgent(llm_agent_input_queue, llm_agent_output_queue)
+else:
+    llm_agent = EchoLLMAgent(llm_agent_input_queue, llm_agent_output_queue)
+
+# Pass llm_agent_input_queue to Transcriber and both queues to WordDisplayManager
+# ...
 ```
 
 ## Troubleshooting
 
 ### Configuration Loading Issues
-- Ensure `config/app.rabl`, `config/emotions.rabl`, and `config/transcription.rabl` exist.
+- Ensure all `.rabl` files in the `config/` directory exist.
 - Check for YAML syntax errors (proper indentation is crucial).
-- The `rabl_parser.py` now automatically resolves file paths, so it should work regardless of the execution directory.
+
+### ModuleNotFoundError
+- If you encounter `ModuleNotFoundError` when running `python src/main.py`, try running the application as a module: `python -m src.main`. The `main.py` file includes a `sys.path` modification to help with module discovery.
 
 ### No Audio Input
 - Verify your microphone is connected and has the correct permissions.
-- Check that `audio_config.sample_rate` in `app.rabl` matches your system's capabilities.
+- Check that `audio_config.sample_rate` in `audio.rabl` matches your system's capabilities.
 
 ### Transcription Not Working
 - Ensure the selected backend is installed: `pip install faster-whisper` or `pip install openai-whisper`.
 - Check that `transcription_config.backend` is set correctly in `transcription.rabl`.
 - Check the `logs/` directory for any transcription-related error messages.
+- If using `device: "cuda"` and encountering errors, ensure your CUDA and cuDNN setup is correct, or change `device` to `"cpu"` in `transcription.rabl`.
+
+### LLM Agent Not Responding
+- Ensure the `OPENAI_API_KEY` environment variable is set if you are using an OpenAI-based LLM (e.g., if you were to re-integrate `ChatOpenAI`).
+- Verify that the correct LLM agent is selected in `src/main.py` (e.g., `USE_GOOGLE_ADK_AGENT` flag).
+- Check the console output for any errors from the `LLMAgent` thread.
 
 ## License
 

@@ -4,7 +4,5 @@ numpy
 openai-whisper
 faster-whisper
 pyyaml
-whisperx
-pyannote.audio
-torch
-torchaudio
+langchain
+google-adk

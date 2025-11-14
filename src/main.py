@@ -1,5 +1,6 @@
 import pygame
 import sys
+import os # Import os for path manipulation
 import queue
 import numpy as np
 import threading
@@ -12,6 +13,11 @@ from src.transcription.transcriber import OpenAIWhisperTranscriber, FasterWhispe
 # from src.config.rabl_parser import parse_rabl # No longer directly used
 from src.ui.word_display_manager import WordDisplayManager
 from src.config.config_loader import ConfigLoader
+from src.agent.llm_agent import EchoLLMAgent # Import the EchoLLMAgent
+from src.agent.google_adk_llm_agent import GoogleADKLLMAgent # Import the GoogleADKLLMAgent
+
+# Add the project root to sys.path for module imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def main():
     """Main animation loop."""
@@ -78,6 +84,19 @@ def main():
 
     # Queue for transcribed text to be sent to WordDisplayManager
     transcribed_text_queue = queue.Queue()
+    # Queue for text to be sent to the LLM agent
+    llm_agent_input_queue = queue.Queue()
+    # Queue for LLM agent responses
+    llm_agent_output_queue = queue.Queue()
+
+    # --- LLM Agent Selection ---
+    # For now, hardcode the agent type. In a more advanced setup, this could come from config.
+    USE_GOOGLE_ADK_AGENT = False # Set to True to use GoogleADKLLMAgent
+
+    if USE_GOOGLE_ADK_AGENT:
+        llm_agent = GoogleADKLLMAgent(llm_agent_input_queue, llm_agent_output_queue)
+    else:
+        llm_agent = EchoLLMAgent(llm_agent_input_queue, llm_agent_output_queue)
 
     # Initialize WordDisplayManager
     word_display_manager = WordDisplayManager(
@@ -90,10 +109,13 @@ def main():
         display_text_y_offset=DISPLAY_TEXT_Y_OFFSET,
         transcribed_text_queue=transcribed_text_queue,
         text_start_offset=TEXT_START_OFFSET,
-        transcriber_ready_event=transcriber_ready_event # Pass the new event
+        transcriber_ready_event=transcriber_ready_event, # Pass the new event
+        is_transcriber_paused_func=lambda: transcriber.paused, # Pass a function to check pause state
+        llm_agent_input_queue=llm_agent_input_queue, # Pass LLM agent input queue
+        llm_agent_output_queue=llm_agent_output_queue # Pass LLM agent output queue
     )
 
-    # --- Start Audio and Transcription Threads ---
+    # --- Start Audio, Transcription, and LLM Agent Threads ---
     audio_handler = AudioHandler(animation_queue, transcription_queue, model_loaded_event,
                                 chunk_size=audio_chunk_size, rate=audio_rate, 
                                 channels=audio_channels, gain_factor=audio_gain_factor)
@@ -101,6 +123,7 @@ def main():
     if TRANSCRIBER_BACKEND == "faster-whisper":
         transcriber = FasterWhisperTranscriber(transcription_queue, transcribed_text_queue, model_loaded_event, 
                                                transcriber_ready_event, # Pass the new event
+                                               llm_agent_input_queue=llm_agent_input_queue, # Pass agent input queue
                                                model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
                                                interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
                                                overlap_seconds=OVERLAP_SECONDS,
@@ -111,6 +134,7 @@ def main():
     else: # Default to openai
         transcriber = OpenAIWhisperTranscriber(transcription_queue, transcribed_text_queue, model_loaded_event, 
                                               transcriber_ready_event, # Pass the new event
+                                              llm_agent_input_queue=llm_agent_input_queue, # Pass agent input queue
                                               model_name=TRANSCRIBER_MODEL, device=TRANSCRIBER_DEVICE, 
                                               interval_seconds=TRANSCRIPTION_INTERVAL_SECONDS, 
                                               overlap_seconds=OVERLAP_SECONDS,
@@ -119,6 +143,7 @@ def main():
         
     audio_handler.start()
     transcriber.start()
+    llm_agent.start() # Start the LLM agent thread
 
     # The main loop will now handle drawing the loading message via WordDisplayManager
     # No blocking wait here.
@@ -150,6 +175,9 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            # Handle events for the word display manager (including input box)
+            word_display_manager.handle_event(event)
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_m:
                     current_emotion_index = (current_emotion_index + 1) % len(EMOTIONS)
@@ -157,6 +185,8 @@ def main():
                     print(f"Emotion changed to: {face.emotion}")
                 elif event.key == pygame.K_t:
                     face.toggle_eyelids()
+                elif event.key == pygame.K_p:
+                    transcriber.toggle_pause()
 
         face.update()
 
@@ -173,15 +203,18 @@ def main():
 
         # --- Handle Transcription Text (now handled directly by Transcriber) ---
         word_display_manager.update(delta_time)
-        word_display_manager.draw(screen)
+        word_display_manager.draw(screen, current_time) # Pass current_time to draw
+        word_display_manager.draw_input_box(screen, TEXT_COLOR) # Draw the input box
 
         pygame.display.flip()
 
     # --- Cleanup ---
     audio_handler.stop()
     transcriber.stop()
+    llm_agent.stop() # Stop the LLM agent thread
     audio_handler.join()
     transcriber.join()
+    llm_agent.join() # Join the LLM agent thread
     
     pygame.quit()
     sys.exit()

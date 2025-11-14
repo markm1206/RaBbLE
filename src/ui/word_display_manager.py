@@ -13,7 +13,8 @@ class WordDisplayManager:
     def __init__(self, font, text_color, screen_width, screen_height,
                  scroll_speed=70, word_display_interval_ms=150, display_text_y_offset=50,
                  transcribed_text_queue=None, text_start_offset=50,
-                 transcriber_ready_event=None): # New parameter for transcriber ready event
+                 transcriber_ready_event=None, is_transcriber_paused_func=None,
+                 llm_agent_input_queue=None, llm_agent_output_queue=None): # New parameter for LLM agent input/output queues
         self.font = font
         self.text_color = text_color
         self.screen_width = screen_width
@@ -31,6 +32,21 @@ class WordDisplayManager:
         self.transcribed_text_queue = transcribed_text_queue # Store the queue
         self.text_start_offset = text_start_offset # Offset from center for new words
         self.transcriber_ready_event = transcriber_ready_event # Store the event
+        self.is_transcriber_paused_func = is_transcriber_paused_func # Function to check if transcriber is paused
+        self.llm_agent_input_queue = llm_agent_input_queue # Store LLM agent input queue
+        self.llm_agent_output_queue = llm_agent_output_queue # Store LLM agent output queue
+        self.llm_response_display_queue = deque() # Stores LLM responses for display
+        self.last_llm_response_time = pygame.time.get_ticks()
+        self.llm_response_display_interval_ms = 200 # Interval for displaying LLM response words
+
+        # Text input field variables
+        self.input_box_active = False
+        self.input_text = ""
+        self.input_font = pygame.font.Font(None, 32)
+        self.input_box_rect = pygame.Rect(50, self.screen_height - 40, self.screen_width - 100, 30)
+        self.input_box_color_inactive = (100, 100, 100)
+        self.input_box_color_active = (200, 200, 200)
+        self.input_box_color = self.input_box_color_inactive
 
     def update(self, delta_time):
         """
@@ -48,6 +64,13 @@ class WordDisplayManager:
             words = text.split()
             for word in words:
                 self.pending_display_words.append(word)
+
+        # Pull new LLM agent responses from the queue and add to llm_response_display_queue
+        while self.llm_agent_output_queue and not self.llm_agent_output_queue.empty():
+            response_text = self.llm_agent_output_queue.get()
+            response_words = response_text.split()
+            for word in response_words:
+                self.llm_response_display_queue.append(word)
 
         # Add new words from pending to active at a uniform rate
         current_time = pygame.time.get_ticks()
@@ -84,11 +107,18 @@ class WordDisplayManager:
             self.active_display_words.pop()
 
 
-    def draw(self, screen):
+    def draw(self, screen, current_time): # Pass current_time to draw
         """
         Draws all active words on the screen, centered vertically.
         If the transcriber is not ready, it draws a loading message instead.
         """
+        if self.is_transcriber_paused_func and self.is_transcriber_paused_func():
+            paused_message = "Transcription Paused"
+            paused_surface = self.font.render(paused_message, True, self.text_color)
+            paused_rect = paused_surface.get_rect(center=(self.screen_width // 2, self.screen_height - self.display_text_y_offset))
+            screen.blit(paused_surface, paused_rect)
+            return
+        
         if not self.transcriber_ready_event.is_set():
             loading_message = "Initializing Transcription..."
             loading_surface = self.font.render(loading_message, True, self.text_color)
@@ -106,3 +136,51 @@ class WordDisplayManager:
         for word_data in self.active_display_words:
             word_surface = self.font.render(word_data['text'], True, self.text_color)
             screen.blit(word_surface, (int(word_data['x']), int(text_y)))
+
+        # Display LLM responses (simple display for now, can be enhanced)
+        if self.llm_response_display_queue and (current_time - self.last_llm_response_time) >= self.llm_response_display_interval_ms:
+            llm_word = self.llm_response_display_queue.popleft()
+            llm_surface = self.font.render(f"AI: {llm_word}", True, (0, 255, 0)) # Green for AI response
+            llm_rect = llm_surface.get_rect(topleft=(50, 50)) # Top-left for now
+            screen.blit(llm_surface, llm_rect)
+            self.last_llm_response_time = current_time
+
+    def handle_event(self, event):
+        """
+        Handles Pygame events for the text input box.
+        """
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_i: # Toggle input box visibility
+                self.input_box_active = not self.input_box_active
+                if not self.input_box_active:
+                    self.input_text = "" # Clear text when hiding
+                self.input_box_color = self.input_box_color_active if self.input_box_active else self.input_box_color_inactive
+            
+            if self.input_box_active:
+                if event.key == pygame.K_RETURN:
+                    if self.input_text and self.llm_agent_input_queue:
+                        print(f"User input: {self.input_text}")
+                        self.llm_agent_input_queue.put(self.input_text) # Send text to LLM agent
+                        self.input_text = "" # Clear input after sending
+                elif event.key == pygame.K_BACKSPACE:
+                    self.input_text = self.input_text[:-1]
+                else:
+                    self.input_text += event.unicode
+        
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.input_box_rect.collidepoint(event.pos):
+                self.input_box_active = not self.input_box_active
+            else:
+                self.input_box_active = False
+            self.input_box_color = self.input_box_color_active if self.input_box_active else self.input_box_color_inactive
+
+    def draw_input_box(self, screen, text_color):
+        """
+        Draws the text input box on the screen if active.
+        """
+        if self.input_box_active:
+            pygame.draw.rect(screen, self.input_box_color, self.input_box_rect, 2)
+            text_surface = self.input_font.render(self.input_text, True, text_color)
+            screen.blit(text_surface, (self.input_box_rect.x + 5, self.input_box_rect.y + 5))
+            # Adjust input box width if text exceeds current width
+            self.input_box_rect.w = max(200, text_surface.get_width() + 10)
