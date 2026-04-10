@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RaBbLE // Grimoire_v0.4</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-void: #000000;
+            --bg-light: #1a1b2e;
+            --bg-panel: #24253d;
+            --neon-magenta: #ff00ff;   
+            --neon-cyan: #00ffff;      
+            --neon-purple: #9d4eff;    
+            --eye-white: #ffffff;
+        }
+
+        body {
+            background-color: #0f0f1a;
+            color: #ececec;
+            font-family: 'Fira Code', monospace;
+            margin: 0; padding: 0;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; overflow: hidden;
+        }
+
+        .bezel {
+            position: relative;
+            width: 95vw; height: 92vh;
+            max-width: 1400px;
+            background: var(--bg-light);
+            border: 3px solid var(--neon-purple);
+            border-radius: 40px;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(157, 78, 255, 0.3);
+        }
+
+        header {
+            padding: 15px 40px;
+            border-bottom: 2px solid var(--neon-magenta);
+            background: var(--bg-panel);
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 10;
+        }
+
+        .container { display: flex; flex: 1; overflow: hidden; }
+
+        nav {
+            width: 250px;
+            border-right: 1px solid var(--neon-cyan);
+            padding: 20px;
+            background: var(--bg-panel);
+        }
+
+        nav a {
+            color: var(--neon-cyan);
+            text-decoration: none;
+            display: block;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        nav a:hover { color: var(--neon-magenta); text-shadow: 0 0 8px var(--neon-magenta); }
+
+        main { 
+            flex: 1; 
+            padding: 40px; 
+            overflow-y: auto; 
+            background: rgba(0,0,0,0.2);
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-purple) transparent;
+        }
+
+        /* Markdown Rendering Styles */
+        #content-area h1 { color: var(--neon-cyan); text-shadow: 0 0 10px var(--neon-cyan); text-transform: uppercase; }
+        #content-area h2 { color: var(--neon-magenta); border-bottom: 1px solid var(--neon-purple); padding-bottom: 5px; }
+        #content-area code { background: #000; color: #0f0; padding: 2px 5px; border-radius: 4px; }
+        #content-area pre { background: #000; padding: 15px; border-radius: 10px; border: 1px solid var(--neon-purple); overflow-x: auto; }
+        #content-area a { color: var(--neon-magenta); }
+
+        /* SVG Entity */
+        #s { width: 300px; margin: 0 auto; display: block; filter: drop-shadow(0 0 10px var(--neon-cyan)); }
+        .portal-bg { fill: var(--bg-void); stroke: var(--neon-purple); stroke-width: 1; }
+        .eye-core { fill: var(--eye-white); stroke: var(--neon-cyan); stroke-width: 4; }
+
+        .glow-mag { color: var(--neon-magenta); text-shadow: 0 0 10px var(--neon-magenta); }
+    </style>
+</head>
+<body>
+
+<div class="bezel">
+    <header>
+        <div>
+            <h1 class="glow-mag" style="margin:0; font-size: 1.5rem;">RaBbLE // NODE</h1>
+        </div>
+        <div style="text-align: right; font-size: 0.7rem; color: var(--neon-cyan);">
+            <p id="file-path">FILE: README.md</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <nav id="sidebar">
+            <h2 style="font-size: 0.8rem; color: var(--neon-magenta); margin-bottom: 20px;">DOCUMENTS</h2>
+            <a onclick="loadMarkdown('README.md')">> README.md</a>
+            <a onclick="loadMarkdown('grimoire/RaBbLE.md')">> RaBbLE.md</a>
+        </nav>
+
+        <main id="main-viewport">
+            <svg id="s" viewBox="0 0 680 360" xmlns="http://www.w3.org/2000/svg">
+                <ellipse class="portal-bg" cx="210" cy="263" rx="95" ry="22"/>
+                <ellipse class="portal-bg" cx="420" cy="87" rx="105" ry="22"/>
+                <ellipse class="eye-core" id="eL" cx="210" cy="175" rx="34" ry="103"/>
+                <ellipse class="eye-core" id="eR" cx="420" cy="175" rx="34" ry="103"/>
+            </svg>
+
+            <div id="content-area"></div>
+        </main>
+    </div>
+</div>
+
+<script>
+    // 1. MARKDOWN LOADER
+    async function loadMarkdown(url) {
+        const contentArea = document.getElementById('content-area');
+        const pathDisplay = document.getElementById('file-path');
+        
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('File not found');
+            const text = await response.text();
+            contentArea.innerHTML = marked.parse(text);
+            pathDisplay.innerText = `FILE: ${url.toUpperCase()}`;
+            // Scroll to top of content
+            document.getElementById('main-viewport').scrollTop = 0;
+        } catch (err) {
+            contentArea.innerHTML = `<p style="color:red">Error loading document: ${url}</p>`;
+        }
+    }
+
+    // Load default on startup
+    loadMarkdown('README.md');
+
+    // 2. OPTIMIZED EYE TRACKING
+    var eL = document.getElementById('eL'), eR = document.getElementById('eR'), svg = document.getElementById('s');
+    var maxXL = 46, maxXR = 58, tx = 0, ty = 0, vx = 0, vy = 0, targetX = 0, targetY = 0;
+
+    document.addEventListener('mousemove', (e) => {
+        var raw = (e.clientX - (window.innerWidth / 2)) / (window.innerWidth * 0.5);
+        targetX = Math.max(-1, Math.min(1, raw)) * maxXL;
+    });
+
+    function tick() {
+        vx = (vx + (targetX - tx) * 0.1) * 0.8;
+        tx += vx;
+        // Optimization: only update attributes if change is significant
+        eL.setAttribute('cx', 210 + tx);
+        eR.setAttribute('cx', 420 + tx);
+        requestAnimationFrame(tick);
+    }
+    tick();
+</script>
+
+</body>
+</html>
