@@ -1,0 +1,25 @@
+name: RaBbLE-Frontend
+slug: RaBbLE-Frontend
+description: "Animated rendered frontend — the entity's visual expression and interactive surface."
+role: frontend
+
+repo: TBD
+branch: main
+epoch_branch: epoch/1-frontend
+worktree_root: ~/RaBbLE/RaBbLE-Frontend
+
+phase: 0
+epoch: 0
+status: scaffold
+
+grimoire_sync: false
+grimoire_path: grimoire/
+
+palette_version: "1.0"
+entity_embedded: true
+pulse_protocol: true
+
+notes: >
+  Epoch 0 scaffold. Repo not yet initialized.
+  Run: scripts/new-member.sh --slug RaBbLE-Frontend --role frontend
+  Update repo URL after GitHub repo creation.

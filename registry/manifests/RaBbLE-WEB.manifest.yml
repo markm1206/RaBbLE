@@ -1,0 +1,25 @@
+name: RaBbLE-WEB
+slug: RaBbLE-WEB
+description: "Agentic web server — inference routing, workflow orchestration, API backbone."
+role: server
+
+repo: TBD
+branch: main
+epoch_branch: epoch/1-web
+worktree_root: ~/RaBbLE/RaBbLE-WEB
+
+phase: 0
+epoch: 0
+status: scaffold
+
+grimoire_sync: false
+grimoire_path: grimoire/
+
+palette_version: "1.0"
+entity_embedded: true
+pulse_protocol: true
+
+notes: >
+  Epoch 0 scaffold. Repo not yet initialized.
+  Run: scripts/new-member.sh --slug RaBbLE-WEB --role server
+  Update repo URL after GitHub repo creation.

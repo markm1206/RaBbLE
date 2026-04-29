@@ -1,0 +1,51 @@
+epoch: 0
+name: "Foundation"
+status: active
+started: 2026-04-28
+
+intent: >
+  Establish the Collective coordination layer. Define the structure,
+  conventions, and philosophy before building anything.
+  Every project exists as a registered scaffold. Nothing is wired yet.
+  This epoch is complete when the Collective can bootstrap itself.
+
+exit_condition: >
+  RaBbLE-Collective repo committed and pushed to GitHub.
+  All project repos initialized, registered in manifests, and cloneable.
+  setup.sh verified against live repos.
+  AGENT.md Project Index reflects real repo URLs.
+  Each project has AGENT.md, CONTEXT.md, REFERENCES.md, and workspace structure.
+  Ready to begin Epoch 1 active development.
+
+focus:
+  RaBbLE-Collective:
+    priority: primary
+    milestone: "Coordination layer committed and operational"
+    active_work:
+      - Initial commit to GitHub
+      - Verify setup.sh against live repos
+      - Update manifest repo URLs from TBD to real remotes
+
+  RaBbLE-OS:
+    priority: scaffold
+    milestone: "Repo structure aligned to Collective conventions"
+    active_work:
+      - AGENT.md, CONTEXT.md, REFERENCES.md in place
+      - Workspace structure (planning/, src/, grimoire/, ops/) present
+      - Manifest URL confirmed
+
+  RaBbLE-WEB:
+    priority: scaffold
+    milestone: "Repo initialized and registered"
+    active_work:
+      - GitHub repo created
+      - new-member.sh run to scaffold structure
+      - Manifest URL updated from TBD
+
+  RaBbLE-Frontend:
+    priority: scaffold
+    milestone: "Repo initialized and registered"
+    active_work:
+      - GitHub repo created
+      - new-member.sh run to scaffold structure
+      - Manifest URL updated from TBD

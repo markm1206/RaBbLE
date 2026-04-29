@@ -1,0 +1,26 @@
+name: RaBbLE-OS
+slug: RaBbLE-OS
+description: "The Ansible-driven Linux OS substrate — the body RaBbLE moves through."
+role: substrate
+
+repo: https://github.com/markm1206/RaBbLE-OS.git
+branch: main
+epoch_branch: epoch/1-daily-driver
+worktree_root: ~/RaBbLE/RaBbLE-OS
+
+phase: 0
+epoch: 0
+status: scaffold
+
+grimoire_sync: false
+grimoire_path: grimoire/
+
+palette_version: "1.0"
+entity_embedded: true
+pulse_protocol: true
+
+notes: >
+  Primary Collective substrate. Fedora 43 base, Ansible-driven.
+  Hardware target: ASUS ProArt P16 H7606WV (x64).
+  Phase 1 Daily Driver in progress.
+  Detail: RaBbLE-OS/grimoire/RaBbLE-OS-Roadmap.md
