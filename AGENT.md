@@ -11,10 +11,10 @@ Full entity spec: `RaBbLE-Grimoire/RaBbLE-Agent/RaBbLE-Identity.md` · Full orie
 
 ---
 
-## Current State — 2026-06-30
+## Current State — 2026-07-02
 
 **Phase:** Epoch 0 · Evolution 0 · Echo 0 · Episode 1 in flight — 2 gates remain.
-**Recent (S186):** `log/` restructured: handoffs/done/, plans/done/, episodes/, archive/, generated/ subdirs; 20 files moved to typed homes. `registry/subdomains.yml` live (all 6 joinrabble.world subdomains). INDEX.md + README files updated.
+**Recent (S188):** Doc-closeout audit — committed a prior session's orphaned S187 work (gist regen, INDEX.md sync, `grimoire-doctor.sh` ignore-list); verified all 8 regenerated gists against source docs, no drift; released 2 stale agent claim locks.
 **Blockers:** → `RaBbLE-Grimoire/log/BLOCKERS.md`. B-02, B-09, B-10 open. EP1 gates G7/G9 pending.
 **Next:** G7/G9 EP1 gates (Mark-led, VM required); B-10 CF token; drop `.rc-*` aliases; ep1-status.sh spell.
 
