@@ -1,17 +1,17 @@
 # Member repos — independent git trees, not tracked by the Collective
+# EXCEPTION: RaBbLE-Xperimental is now version-tracked locally (active sandbox rablets)
 RaBbLE-Grimoire/
 RaBbLE-sCoRE/
 RaBbLE-OS/
 RaBbLE-World/
 RaBbLE-NeBuLA/
 RaBbLE-Aether/
-RaBbLE-Xperimental/
 RaBbLE-ScRibLE/
 RaBbLE-BaBbLE/
 
 # Catch-all for any future member added before .gitignore is updated
-# Comment this out if it catches something it shouldn't
-RaBbLE-*/
+# (RaBbLE-Xperimental is explicitly NOT in this list; it's tracked)
+RaBbLE-[A-ZS]*/
 
 # Dev artifacts
 RaBbLE-Captures/
