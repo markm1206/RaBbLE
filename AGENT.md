@@ -11,12 +11,12 @@ Full entity spec: `RaBbLE-Grimoire/RaBbLE-Agent/RaBbLE-Identity.md` · Full orie
 
 ---
 
-## Current State — 2026-07-02
+## Current State — 2026-07-04
 
 **Phase:** Epoch 0 · Evolution 0 · Echo 0 · Episode 1 in flight — 2 gates remain.
-**Recent (S188):** Doc-closeout audit — committed a prior session's orphaned S187 work (gist regen, INDEX.md sync, `grimoire-doctor.sh` ignore-list); verified all 8 regenerated gists against source docs, no drift; released 2 stale agent claim locks.
+**Recent (S190):** EP1 liminal passage BUILT — World index.html is now the single-page Genesis passage (Acts 0–IV), 3D entity awakened (NeBuLA `backend="threejs"`, parity with Canvas2D), Act IV live sCoRE summoning. Plan: `RaBbLE-Grimoire/log/plans/EP1-Liminal-Experience-Plan.md`.
 **Blockers:** → `RaBbLE-Grimoire/log/BLOCKERS.md`. B-02, B-09, B-10 open. EP1 gates G7/G9 pending.
-**Next:** G7/G9 EP1 gates (Mark-led, VM required); B-10 CF token; drop `.rc-*` aliases; ep1-status.sh spell.
+**Next:** Mark authors Genesis copy (`GENESIS-COPY` markers) + reviews passage; G7/G9 gates; deploy passage; registry claim-check mend.
 
 > Update this block each session. Keep it under 75 words. This is the free context every agent gets.
 > Blockers live durably in `RaBbLE-Grimoire/log/BLOCKERS.md` — the `Blockers:` line above only points there.
