@@ -14,9 +14,9 @@ Full entity spec: `RaBbLE-Grimoire/RaBbLE-Agent/RaBbLE-Identity.md` · Full orie
 ## Current State — 2026-07-04
 
 **Phase:** Epoch 0 · Evolution 0 · Echo 0 · Episode 1 in flight — 2 gates remain.
-**Recent (S192):** Collective Architecture Audit plan written (not yet run) — fable-5 orchestrator + one sub-agent per member repo, recon/design-only, sCoRE flat-architecture deep-dive scoped (`server/` ~16 flat files, no subpackages). Plan: `RaBbLE-Grimoire/log/plans/Collective-Architecture-Audit-Plan.md`.
+**Recent (S193/S194):** Architecture audit RUN — all 10 members audited; deliverables `RaBbLE-Grimoire/log/plans/Collective-Architecture-Audit-2026-07-04.md` + `sCoRE-Extensibility-Refactor-Plan.md` (3 options, Mark decides). S194: ProArt power-stack plan ready (`OS-ProArt-Power-Stack-Plan.md`).
 **Blockers:** → `RaBbLE-Grimoire/log/BLOCKERS.md`. B-02, B-09, B-10 open. EP1 gates G7/G9 pending.
-**Next:** Mark runs the audit prompt against fable-5 when ready; carryover from S190: Genesis copy, G7/G9 gates, deploy passage.
+**Next:** Mark reviews audit + adds both docs to INDEX.md; implement power-stack Phases 1–4; carryover: Genesis copy, G7/G9 gates, deploy passage.
 
 > Update this block each session. Keep it under 75 words. This is the free context every agent gets.
 > Blockers live durably in `RaBbLE-Grimoire/log/BLOCKERS.md` — the `Blockers:` line above only points there.
