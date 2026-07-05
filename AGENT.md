@@ -11,12 +11,12 @@ Full entity spec: `RaBbLE-Grimoire/RaBbLE-Agent/RaBbLE-Identity.md` · Full orie
 
 ---
 
-## Current State — 2026-07-04
+## Current State — 2026-07-05
 
 **Phase:** Epoch 0 · Evolution 0 · Echo 0 · Episode 1 in flight — 2 gates remain.
-**Recent (S193-195):** Architecture audit RUN — all 10 members audited; deliverables `RaBbLE-Grimoire/log/plans/Collective-Architecture-Audit-2026-07-04.md` + `sCoRE-Extensibility-Refactor-Plan.md` (3 options, Mark decides). S194: ProArt power-stack plan ready. S195: `RaBbLE-BaBbLE/prototypes/RaBbLE-Strata.html` — cryptic design-history showcase (Aether+NeBuLA, prototype only).
+**Recent (S196):** Architecture audit Batch 1 landed — Grimoire registry reconciled (surfaced 11th member TaskViSoR), NeBuLA API doc rewritten + AnimationFilter export bug fixed, 4 CONTEXT.md refreshed, cdn→aether./nebula. subdomain sweep (unified CDN cancelled). Ledger: `RaBbLE-Grimoire/log/plans/Collective-Architecture-Audit-PROGRESS.md`.
 **Blockers:** → `RaBbLE-Grimoire/log/BLOCKERS.md`. B-02, B-09, B-10 open. EP1 gates G7/G9 pending.
-**Next:** Mark reviews audit + adds both docs to INDEX.md; implement power-stack Phases 1–4; carryover: Genesis copy, G7/G9 gates, deploy passage.
+**Next:** Mark works 18 deferred audit decisions (sCoRE A/B/C, jane.py, Captures, .rc-*, OS manifest); G7/G9 VM verify; then restructure tier.
 
 > Update this block each session. Keep it under 75 words. This is the free context every agent gets.
 > Blockers live durably in `RaBbLE-Grimoire/log/BLOCKERS.md` — the `Blockers:` line above only points there.
