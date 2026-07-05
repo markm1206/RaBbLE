@@ -14,7 +14,7 @@ Full entity spec: `RaBbLE-Grimoire/RaBbLE-Agent/RaBbLE-Identity.md` · Full orie
 ## Current State — 2026-07-04
 
 **Phase:** Epoch 0 · Evolution 0 · Echo 0 · Episode 1 in flight — 2 gates remain.
-**Recent (S193/S194):** Architecture audit RUN — all 10 members audited; deliverables `RaBbLE-Grimoire/log/plans/Collective-Architecture-Audit-2026-07-04.md` + `sCoRE-Extensibility-Refactor-Plan.md` (3 options, Mark decides). S194: ProArt power-stack plan ready (`OS-ProArt-Power-Stack-Plan.md`).
+**Recent (S193-195):** Architecture audit RUN — all 10 members audited; deliverables `RaBbLE-Grimoire/log/plans/Collective-Architecture-Audit-2026-07-04.md` + `sCoRE-Extensibility-Refactor-Plan.md` (3 options, Mark decides). S194: ProArt power-stack plan ready. S195: `RaBbLE-BaBbLE/prototypes/RaBbLE-Strata.html` — cryptic design-history showcase (Aether+NeBuLA, prototype only).
 **Blockers:** → `RaBbLE-Grimoire/log/BLOCKERS.md`. B-02, B-09, B-10 open. EP1 gates G7/G9 pending.
 **Next:** Mark reviews audit + adds both docs to INDEX.md; implement power-stack Phases 1–4; carryover: Genesis copy, G7/G9 gates, deploy passage.
 
