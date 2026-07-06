@@ -11,12 +11,12 @@ Full entity spec: `RaBbLE-Grimoire/RaBbLE-Agent/RaBbLE-Identity.md` · Full orie
 
 ---
 
-## Current State — 2026-07-05
+## Current State — 2026-07-06
 
 **Phase:** Epoch 0 · Evolution 0 · Echo 0 · Episode 1 in flight — 2 gates remain.
-**Recent (S196):** Architecture audit Batch 1 landed — Grimoire registry reconciled (surfaced 11th member TaskViSoR), NeBuLA API doc rewritten + AnimationFilter export bug fixed, 4 CONTEXT.md refreshed, cdn→aether./nebula. subdomain sweep (unified CDN cancelled). Ledger: `RaBbLE-Grimoire/log/plans/Collective-Architecture-Audit-PROGRESS.md`.
+**Recent (S197):** ProArt power-stack Phases 1–4 implemented (authored, not applied) — profiling spell, Hyprland GPU-load cut, NVIDIA D3cold idle fix, tuned+asusd 3-mode waybar picker (was `%DORMANT%`). Awaits Mark's on-hardware reboot verify. Phase 5 settings-app deferred to its own plan. Ledger: `RaBbLE-Grimoire/log/plans/OS-ProArt-Power-Stack-Plan.md`.
 **Blockers:** → `RaBbLE-Grimoire/log/BLOCKERS.md`. B-02, B-09, B-10 open. EP1 gates G7/G9 pending.
-**Next:** Mark works 18 deferred audit decisions (sCoRE A/B/C, jane.py, Captures, .rc-*, OS manifest); G7/G9 VM verify; then restructure tier.
+**Next:** Mark reboots + verifies power stack on hardware (D3cold, waybar modes, fans); confirm asusctl flag syntax; 18 deferred audit decisions; G7/G9 VM verify.
 
 > Update this block each session. Keep it under 75 words. This is the free context every agent gets.
 > Blockers live durably in `RaBbLE-Grimoire/log/BLOCKERS.md` — the `Blockers:` line above only points there.
