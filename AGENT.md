@@ -11,12 +11,12 @@ Full entity spec: `RaBbLE-Grimoire/RaBbLE-Agent/RaBbLE-Identity.md` · Full orie
 
 ---
 
-## Current State — 2026-07-06
+## Current State — 2026-07-07
 
 **Phase:** Epoch 0 · Evolution 0 · Echo 0 · Episode 1 in flight — 2 gates remain.
-**Recent (S197):** ProArt power-stack Phases 1–4 implemented (authored, not applied) — profiling spell, Hyprland GPU-load cut, NVIDIA D3cold idle fix, tuned+asusd 3-mode waybar picker (was `%DORMANT%`). Awaits Mark's on-hardware reboot verify. Phase 5 settings-app deferred to its own plan. Ledger: `RaBbLE-Grimoire/log/plans/OS-ProArt-Power-Stack-Plan.md`.
+**Recent:** S198 NeBuLA Studio MVP built + Playwright-verified. S199: fixed llama.cpp Ansible prebuilt-download 404 (upstream `ggml-org` rename + Linux assets now `.tar.gz` not `.zip`). ProArt power-stack (S197, Phases 1–4 authored) still awaits Mark's on-hardware reboot verify. Ledger: `RaBbLE-Grimoire/log/plans/OS-ProArt-Power-Stack-Plan.md`.
 **Blockers:** → `RaBbLE-Grimoire/log/BLOCKERS.md`. B-02, B-09, B-10 open. EP1 gates G7/G9 pending.
-**Next:** Mark reboots + verifies power stack on hardware (D3cold, waybar modes, fans); confirm asusctl flag syntax; 18 deferred audit decisions; G7/G9 VM verify.
+**Next:** Mark reboots + verifies power stack (D3cold, waybar modes, fans); confirm asusctl flag syntax; re-run llama.cpp runtime role; 18 deferred audit decisions; G7/G9 VM verify.
 
 > Update this block each session. Keep it under 75 words. This is the free context every agent gets.
 > Blockers live durably in `RaBbLE-Grimoire/log/BLOCKERS.md` — the `Blockers:` line above only points there.
