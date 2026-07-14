@@ -11,12 +11,12 @@ Full entity spec: `RaBbLE-Grimoire/RaBbLE-Agent/RaBbLE-Identity.md` · Full orie
 
 ---
 
-## Current State — 2026-07-11
+## Current State — 2026-07-14
 
 **Phase:** Epoch 0 · Evolution 0 · Echo 0 · Episode 1 in flight — 2 gates remain.
-**Recent:** S201: 7-session Dolphin/KDE grey-text bug root-caused + fixed live — KF6 KColorSchemeManager owns app palettes (was defaulting Breeze Light); fix = kdeglobals `[UiSettings]` scheme select + qt5/6ct custom_palette; Ansible↔dotctl kvantum clobber killed. S200: SDDM black screen fixed (WLR_DRM_DEVICES colon-parse). Details: `RaBbLE-Grimoire/log/plans/OS-Dolphin-Grey-Text.md`.
+**Recent:** S203: entity-forward World face BUILT per Mark's brief (conversation as input, no scroll) — sign-off pending; liminal passage retired to Chrysalis reliquary; NeBuLA HiDPI cursor-offset fixed at root; B-10 mapped → `RaBbLE-Grimoire/log/handoffs/HANDOFF-S203-B10-Cloudflare-Token.md`. Plan: `RaBbLE-Grimoire/log/plans/EP1-Air-Push-Plan.md`.
 **Blockers:** → `RaBbLE-Grimoire/log/BLOCKERS.md`. B-02, B-09, B-10 open. EP1 gates G7/G9 pending.
-**Next:** Mark reboots + verifies power stack/SDDM; Aether-hex overlay on Catppuccin baseline (Fix Path C); 18 deferred audit decisions; G7/G9 VM verify.
+**Next:** Mark: face sign-off + CF token mint (handoff). Agents: A5 deploy pipeline, C1 reliquary garden, A1 registry. G7/G9 last.
 
 > Update this block each session. Keep it under 75 words. This is the free context every agent gets.
 > Blockers live durably in `RaBbLE-Grimoire/log/BLOCKERS.md` — the `Blockers:` line above only points there.
