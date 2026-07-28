@@ -10,11 +10,9 @@ RaBbLE-ScRibLE/
 RaBbLE-BaBbLE/
 
 # Catch-all for any future member added before .gitignore is updated
-# (RaBbLE-Xperimental is explicitly NOT in this list; it's tracked)
-RaBbLE-[A-ZS]*/
-
-# Dev artifacts
-RaBbLE-Captures/
+# (RaBbLE-Xperimental is tracked; excluded from wildcard)
+RaBbLE-[ABGNOW]*/
+RaBbLE-S*/
 
 # AI tooling — local only, created by sync-symlinks spell
 CLAUDE.md
