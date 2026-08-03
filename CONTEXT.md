@@ -51,7 +51,7 @@ RaBbLE's opacity is intentional. The Collective and its character are inseparabl
 | `RaBbLE-World/` | Web presence + entity chat surface. `joinrabble.world`. | Active |
 | `RaBbLE-NeBuLA/` | Visual entity renderer. `<rabble-entity>` web component. | Active — Canvas2D complete, Three.js deferred Ep2 |
 | `RaBbLE-Aether/` | Visual design system and canonical asset library. CDN delivery. | Active — CSS bundle live |
-| `RaBbLE-ScRibLE/` | Mobile notes PWA — iPhone/iPad, touch + Apple Pencil. | Defined — not started |
+| `RaBbLE-ScRiBbLE/` | Neon note-taking PWA — infinite canvas, glow-pen ink + text, iPad + Apple Pencil first. | Active — v1 scaffold in progress |
 | `RaBbLE-BaBbLE/` | High-entropy intake — concept art, prototypes, ideation. | Active |
 | `RaBbLE-Xperimental/` | Active sandbox — custom rablets, prototype members, experiments not yet emerged. High entropy by design. | Active |
 | `RaBbLE-Chrysalis/` | Genesis archive — origin code from October 2025 (RaBbLE.py, NeBuLA-JS, WebOS, first server). | Reference |
